@@ -1,0 +1,38 @@
+# Hasil build
+dist/
+build/
+*.spec
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+
+# Uji & cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Keluaran alat pengembangan
+ref/*
+!ref/.gitkeep
+
+# Data kerja operator (bukan data contoh di data/)
+cadangan/
+*.tmp
+Jadwal Sekolah*/
+
+# Editor & OS
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+desktop.ini
+
+# Rahasia lokal
+.env
+.env.*
+.claude/settings.local.json
