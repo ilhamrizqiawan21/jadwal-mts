@@ -62,6 +62,9 @@ class App(tk.Tk):
         self._restore_geometry()
         self.minsize(900, 560)
         theme.apply(self)
+        self._logo = self._muat_logo()
+        if self._logo:
+            self.iconphoto(True, self._logo)       # ikon jendela & bilah tugas
         self._alert_job = None
         self._grp_open = {checks.ERROR: True, checks.WARN: True, checks.INFO: False}
         self._issue_map = {}
@@ -75,6 +78,14 @@ class App(tk.Tk):
         self.bind_all("<Control-y>", lambda e: self.redo())
         self.after(60000, self._autosave)
         self.refresh()
+
+    def _muat_logo(self, bagi: int = 1):
+        """Logo madrasah (img/logo.png). Hanya kosmetik: bila berkas hilang, aplikasi tetap jalan."""
+        try:
+            im = tk.PhotoImage(master=self, file=resource(os.path.join("img", "logo.png")))
+        except tk.TclError:
+            return None
+        return im.subsample(bagi) if bagi > 1 else im
 
     # ------------------------------------------------- ukuran jendela & zoom
     def _restore_geometry(self):
@@ -227,6 +238,10 @@ class App(tk.Tk):
         w = tk.Frame(parent, bg=theme.BG)
         k = theme.card(w, padding=28)
         k.outer.place(relx=0.5, rely=0.4, anchor="center")
+        self._logo_kecil = self._muat_logo(3)
+        if self._logo_kecil:
+            ttk.Label(k, image=self._logo_kecil, style="Card.TLabel").grid(
+                row=0, column=2, rowspan=6, sticky="ne", padx=(28, 0))
         ttk.Label(k, text="Mulai menyusun jadwal", style="CardTitle.TLabel", font=(FONT, 15, "bold")).grid(
             row=0, column=0, columnspan=2, sticky="w")
         ttk.Label(k, style="CardMuted.TLabel", wraplength=460, justify="left",

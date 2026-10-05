@@ -70,6 +70,11 @@ class GridView(ttk.Frame):
         c.bind("<Key>", self._key)
         c.bind("<MouseWheel>", lambda e: c.yview_scroll(-1 * (e.delta // 120), "units"))
         c.bind("<Shift-MouseWheel>", lambda e: c.xview_scroll(-1 * (e.delta // 120), "units"))
+        # Ctrl+scroll (mouse) dan cubit dua jari (touchpad presisi; Windows mengirimnya sebagai Ctrl+scroll)
+        c.bind("<Control-MouseWheel>", self._wheel_zoom)
+        self._zoom_target: Optional[float] = None
+        self._zoom_job = None
+        self._zoom_anchor = (0, 0)
         c.bind("<Configure>", lambda e: self.auto_fit and self.after_idle(self.fit_zoom))
         c.bind("<Control-c>", lambda e: self.copy())
         c.bind("<Control-v>", lambda e: self.paste())
@@ -88,6 +93,34 @@ class GridView(ttk.Frame):
         self.auto_fit = False
         self.zoom = max(0.5, min(1.8, z))
         self.redraw()
+
+    def _wheel_zoom(self, e):
+        """Zoom mengikuti gulir: tiap 120 satuan = 10%. Peristiwa beruntun (cubit) digabung
+        menjadi satu penggambaran ulang supaya tetap mulus."""
+        dasar = self._zoom_target if self._zoom_target is not None else self.zoom
+        self._zoom_target = max(0.5, min(1.8, dasar * 1.1 ** (e.delta / 120)))
+        self._zoom_anchor = (e.x, e.y)
+        if self._zoom_job is None:
+            self._zoom_job = self.after(30, self._apply_wheel_zoom)
+        return "break"
+
+    def _apply_wheel_zoom(self):
+        self._zoom_job = None
+        z, self._zoom_target = self._zoom_target, None
+        if z is None or abs(z - self.zoom) < 1e-3:
+            return
+        c = self.canvas
+        ex, ey = self._zoom_anchor
+        cx, cy = c.canvasx(ex), c.canvasy(ey)           # titik kisi di bawah kursor
+        rasio = z / self.zoom
+        self.set_zoom(z)
+        sr = c.cget("scrollregion").split()
+        if len(sr) >= 4:                                # pertahankan titik itu tepat di bawah kursor
+            W, H = float(sr[2]), float(sr[3])
+            if W > 0:
+                c.xview_moveto(max(0.0, (cx * rasio - ex) / W))
+            if H > 0:
+                c.yview_moveto(max(0.0, (cy * rasio - ey) / H))
 
     def _mode_changed(self):
         self.mode = self.v_mode.get()
