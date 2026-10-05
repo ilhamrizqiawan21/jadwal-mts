@@ -387,6 +387,8 @@ def draw_beban(c: canvas.Canvas, p: Proyek):
     sy = ybot + 16.8
     pen.text(474.4, sy + 5.6, t.get("tempat_tanggal", ""), "Tahoma", 9.2, anchor="l")
     pen.image(_img(m.ttd_png), 456.3, sy + 17.0, 545.5, sy + 68.4)
+    if t.get("jabatan"):      # digambar setelah gambar tanda tangan agar tidak tertutup
+        pen.text(457.5, sy + 14.2, t["jabatan"], "Tahoma-Bold", 7.0, anchor="l")
     pen.btext(457.5, sy + 71.4, t.get("nama", ""), "Calibri-Bold", 7.8, anchor="l")
     wid = pdfmetrics.stringWidth(t.get("nama", ""), F("Calibri-Bold"), 7.8)
     pen.line(457.5, sy + 74.3, 457.5 + wid, sy + 74.3, lw=0.5)

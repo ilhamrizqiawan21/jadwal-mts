@@ -12,6 +12,8 @@ from typing import List
 
 from openpyxl import Workbook
 from openpyxl.drawing.image import Image as XLImage
+from openpyxl.cell.rich_text import CellRichText, TextBlock
+from openpyxl.cell.text import InlineFont
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter as L
 
@@ -210,9 +212,15 @@ def _sheet_beban(wb: Workbook, p: Proyek):
     # tanda tangan
     t = m.beban_ttd
     rs = r0 + nrow + 1
-    ws.row_dimensions[rs].height = 20 * SCALE
-    _put(ws, rs, cw - 6, t.get("tempat_tanggal", ""), _font("Tahoma", 9.2, False), border=None, align="left",
-         c2=last)
+    jab = t.get("jabatan", "")
+    ws.row_dimensions[rs].height = (28 if jab else 20) * SCALE
+    tt = t.get("tempat_tanggal", "")
+    c_tt = _put(ws, rs, cw - 6, tt, _font("Tahoma", 9.2, False), border=None, align="left", c2=last,
+                wrap=bool(jab))
+    if jab:     # jabatan tebal & lebih kecil pada baris kedua sel yang sama (seperti cetakan PDF)
+        c_tt.value = CellRichText(
+            TextBlock(InlineFont(rFont="Tahoma", sz=round(9.2 * SCALE * 2) / 2), tt + "\n"),
+            TextBlock(InlineFont(rFont="Tahoma", sz=round(7.0 * SCALE * 2) / 2, b=True), jab))
     ws.row_dimensions[rs + 1].height = 64 * SCALE
     _img(ws, m.ttd_png, f"{L(cw - 6)}{rs + 1}", 89, 51)
     ws.row_dimensions[rs + 2].height = 11 * SCALE

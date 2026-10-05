@@ -135,21 +135,18 @@ class Penugasan:
 
 @dataclass
 class Meta:
-    sekolah: str = "MTs AL-IHSAN BATUJAJAR"
+    """Identitas & teks cetakan. Semua isian bebas diubah operator; bawaannya kosong
+    (data sekolah tertentu hanya ada di berkas proyek, bukan di program)."""
+    sekolah: str = ""
     semester: str = "GANJIL"
-    tahun: str = "2025 / 2026"
-    judul_beban: str = "DAFTAR BEBAN MENGAJAR SEKOLAH"
-    judul_beban2: str = "GURU MTs. AL-IHSAN BATUJAJAR"
-    jadwal_judul: List[str] = field(default_factory=lambda: [
-        "JADWAL PELAJARAN SEMESTER GANJIL", "MTS AL IHSAN BATUJAJAR",
-        "TAHUN PELAJARAN 2025-2026"])
+    tahun: str = ""
+    judul_beban: str = ""
+    judul_beban2: str = ""
+    jadwal_judul: List[str] = field(default_factory=lambda: ["", "", ""])
     beban_ttd: Dict[str, str] = field(default_factory=lambda: {
-        "tempat_tanggal": "Batujajar 14  Juli 2025", "jabatan": "",
-        "nama": "Dra. Hj. LINA NURHASANAH", "nip": "NIP.196808111994032001"})
+        "tempat_tanggal": "", "jabatan": "", "nama": "", "nip": ""})
     jadwal_ttd: Dict[str, str] = field(default_factory=lambda: {
-        "tempat_tanggal": "Batujajar tanggal  15  Juli 2024",
-        "jabatan": "KEPALA MADRASAH,",
-        "nama": "Dra. Hj. LINA NURHASANAH", "nip": "NIP. 19680811.199403.2.001"})
+        "tempat_tanggal": "", "jabatan": "", "nama": "", "nip": ""})
     kop_png: str = ""                    # base64 gambar kop (JPEG/PNG)
     ttd_png: str = ""                    # base64 gambar tanda tangan
 

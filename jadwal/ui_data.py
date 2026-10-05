@@ -11,7 +11,7 @@ import tkinter as tk
 from tkinter import colorchooser, filedialog, messagebox, ttk
 from typing import Callable, Dict, List, Optional
 
-from . import model as M
+from . import model as M, theme
 
 FONT = "Segoe UI"
 
@@ -126,6 +126,37 @@ class _ListTab(ttk.Frame):
     def reload(self):
         pass
 
+    # ---- bantuan tampilan daftar (zebra, cari, pulihkan pilihan)
+    @staticmethod
+    def zebra(tv: ttk.Treeview):
+        tv.tag_configure("odd", background="#F6F8FC")
+        tv.tag_configure("even", background=theme.SURFACE)
+
+    def search_box(self, parent) -> tk.StringVar:
+        """Kotak cari kecil; mengisi ulang daftar tiap ketikan (daftar kecil, murah)."""
+        v = tk.StringVar()
+        ttk.Label(parent, text="Cari", style="Muted.TLabel").pack(side="left", padx=(2, 4))
+        ttk.Entry(parent, textvariable=v, width=22).pack(side="left")
+        v.trace_add("write", lambda *a: self.reload())
+        return v
+
+    @staticmethod
+    def cocok(q: str, *teks: str) -> bool:
+        """Semua kata pada q harus ada di salah satu teks (tanpa memedulikan huruf besar/kecil)."""
+        if not q:
+            return True
+        h = " ".join(teks).lower()
+        return all(w in h for w in q.lower().split())
+
+    @staticmethod
+    def pulihkan(tv: ttk.Treeview, sel):
+        """Kembalikan pilihan setelah daftar diisi ulang dan pastikan barisnya tetap terlihat."""
+        for i in sel:
+            if tv.exists(i):
+                tv.selection_set(i)
+                tv.see(i)
+                return
+
 
 # ============================================================== BEBAN MENGAJAR
 class BebanTab(_ListTab):
@@ -133,11 +164,15 @@ class BebanTab(_ListTab):
         super().__init__(master, app)
         bar = ttk.Frame(self)
         bar.pack(fill="x", pady=(6, 4), padx=6)
-        for t, c in (("Tambah", self.add), ("Ubah", self.edit), ("Duplikat", self.dup), ("Hapus", self.delete),
+        ttk.Button(bar, text="+ Tambah", style="Accent.TButton", command=self.add).pack(side="left", padx=(0, 6))
+        for t, c in (("Ubah", self.edit), ("Duplikat", self.dup), ("Hapus", self.delete),
                      ("▲ Naik", lambda: self.move(-1)), ("▼ Turun", lambda: self.move(1))):
-            ttk.Button(bar, text=t, command=c).pack(side="left", padx=2)
-        ttk.Label(bar, text="  Sel kelas kosong = tidak mengajar (hitam di cetakan). Klik dua kali baris untuk mengubah.",
-                  foreground="#555").pack(side="left", padx=8)
+            ttk.Button(bar, text=t, style="Tool.TButton", command=c).pack(side="left", padx=1)
+        sf = ttk.Frame(bar)
+        sf.pack(side="right", padx=4)
+        self.q = self.search_box(sf)
+        ttk.Label(self, text="Sel kelas kosong = tidak mengajar (hitam di cetakan). Klik dua kali baris untuk mengubah.",
+                  style="Muted.TLabel").pack(anchor="w", padx=10, pady=(0, 4))
         fr = ttk.Frame(self)
         fr.pack(fill="both", expand=True, padx=6, pady=(0, 6))
         self.tv = ttk.Treeview(fr, show="headings", selectmode="browse")
@@ -150,6 +185,7 @@ class BebanTab(_ListTab):
         fr.rowconfigure(0, weight=1)
         fr.columnconfigure(0, weight=1)
         self.tv.bind("<Double-1>", lambda e: self.edit())
+        self.zebra(self.tv)
         self._tags = set()
 
     def reload(self):
@@ -158,7 +194,7 @@ class BebanTab(_ListTab):
         cols = ["no", "guru", "kode", "mapel", "bbt"] + [k.id for k in p.kelas] + ["ket"]
         self.tv["columns"] = cols
         heads = {"no": ("No", 36), "guru": ("Nama Guru", 190), "kode": ("Kode", 50),
-                 "mapel": ("Bidang Studi", 170), "bbt": ("BBT", 36), "ket": ("KET", 44)}
+                 "mapel": ("Bidang Studi", 170), "bbt": ("BBT", 46), "ket": ("KET", 44)}
         for c in cols:
             if c in heads:
                 self.tv.heading(c, text=heads[c][0])
@@ -170,8 +206,12 @@ class BebanTab(_ListTab):
         gnum = {}
         for a in p.penugasan:
             gnum.setdefault(a.guru, len(gnum) + 1)
+        q = self.q.get().strip()
+        n = 0
         for a in p.penugasan:
             g = p.guru_by_id(a.guru)
+            if not self.cocok(q, a.nama_tampil or (g.nama if g else ""), a.kode, a.mapel, a.keterangan):
+                continue
             tot = a.ket_manual if a.ket_manual is not None else sum(a.beban.values())
             vals = [gnum[a.guru], (a.nama_tampil or (g.nama if g else "?")), a.kode, a.mapel or a.keterangan,
                     "" if a.bbt is None else a.bbt]
@@ -179,14 +219,9 @@ class BebanTab(_ListTab):
                 v = a.beban.get(k.id)
                 vals.append("" if v is None else v)
             vals.append(tot or "")
-            tag = "c" + a.warna.lstrip("#")
-            if tag not in self._tags:
-                self.tv.tag_configure(tag, background=a.warna)
-                self._tags.add(tag)
-            self.tv.insert("", "end", iid=a.id, values=vals, tags=())
-        for i in sel:
-            if self.tv.exists(i):
-                self.tv.selection_set(i)
+            self.tv.insert("", "end", iid=a.id, values=vals, tags=("odd" if n % 2 else "even",))
+            n += 1
+        self.pulihkan(self.tv, sel)
 
     def _current(self) -> Optional[M.Penugasan]:
         sel = self.tv.selection()
@@ -415,22 +450,27 @@ class GuruTab(_ListTab):
     def __init__(self, master, app):
         super().__init__(master, app)
         left = ttk.Frame(self)
-        left.pack(side="left", fill="y", padx=6, pady=6)
+        left.pack(side="left", fill="y", padx=(10, 6), pady=8)
         bar = ttk.Frame(left)
         bar.pack(fill="x")
-        for t, c in (("Tambah", self.add), ("Ubah", self.edit), ("Hapus", self.delete),
+        ttk.Button(bar, text="+ Tambah", style="Accent.TButton", command=self.add).pack(side="left", padx=(0, 6))
+        for t, c in (("Ubah", self.edit), ("Hapus", self.delete),
                      ("▲", lambda: self.move(-1)), ("▼", lambda: self.move(1))):
-            ttk.Button(bar, text=t, width=7 if len(t) > 1 else 3, command=c).pack(side="left", padx=1)
+            ttk.Button(bar, text=t, style="Tool.TButton", width=6 if len(t) > 1 else 3, command=c).pack(side="left", padx=1)
+        sf = ttk.Frame(left)
+        sf.pack(fill="x", pady=(8, 0))
+        self.q = self.search_box(sf)
         self.tv = ttk.Treeview(left, columns=("nama", "ket", "b"), show="headings", selectmode="browse", height=24)
-        for c, w, t in (("nama", 230, "Nama guru"), ("ket", 110, "Catatan"), ("b", 40, "Req")):
+        for c, w, t in (("nama", 250, "Nama guru"), ("ket", 130, "Catatan"), ("b", 56, "Req")):
             self.tv.heading(c, text=t)
-            self.tv.column(c, width=w, anchor="w" if c != "b" else "center")
-        self.tv.pack(fill="y", expand=True, pady=4)
+            self.tv.column(c, width=w, anchor="w" if c != "b" else "center", stretch=False)
+        self.zebra(self.tv)
+        self.tv.pack(fill="y", expand=True, pady=6)
         self.tv.bind("<<TreeviewSelect>>", lambda e: self.show_avail())
         self.tv.bind("<Double-1>", lambda e: self.edit())
 
         self.right = ttk.LabelFrame(self, text="Jam yang diminta kosong (guru mengajar di tempat lain)", padding=10)
-        self.right.pack(side="left", fill="both", expand=True, padx=6, pady=6)
+        self.right.pack(side="left", fill="both", expand=True, padx=(6, 10), pady=8)
         self.lbl = ttk.Label(self.right, text="Pilih guru di daftar kiri.", font=(FONT, 10, "bold"))
         self.lbl.pack(anchor="w")
         ttk.Label(self.right, text="Klik kotak untuk menandai jam yang TIDAK bisa diisi guru ini. "
@@ -447,12 +487,16 @@ class GuruTab(_ListTab):
     def reload(self):
         sel = self.tv.selection()
         self.tv.delete(*self.tv.get_children())
+        q = self.q.get().strip()
+        i = 0
         for g in self.p.guru:
+            if not self.cocok(q, g.nama, g.ket):
+                continue
             n = sum(len(v) for v in g.tidak_bisa.values())
-            self.tv.insert("", "end", iid=g.id, values=(g.nama, g.ket, n or ""))
-        for i in sel:
-            if self.tv.exists(i):
-                self.tv.selection_set(i)
+            self.tv.insert("", "end", iid=g.id, values=(g.nama, g.ket, n or ""),
+                           tags=("odd" if i % 2 else "even",))
+            i += 1
+        self.pulihkan(self.tv, sel)
         self.show_avail()
 
     def show_avail(self):
@@ -478,7 +522,8 @@ class GuruTab(_ListTab):
                 on = r["id"] in g.tidak_bisa.get(hari, [])
                 txt = f"jam {r['jam'][0]}-{r['jam'][-1]}\n{r['waktu'][0][:5]}"
                 b = tk.Button(self.matrix, text=txt, width=11, height=2, relief="solid", bd=1,
-                              bg="#ff8a8a" if on else "#f0f0f0",
+                              bg="#F5A3A3" if on else theme.SURFACE, activebackground="#F9C9C9" if on else theme.HOVER,
+                              fg=theme.TEXT, font=(FONT, 9),
                               command=lambda h=hari, bid=r["id"]: self.toggle(h, bid))
                 b.grid(row=bi + 1, column=ci + 1, padx=2, pady=2)
 
@@ -551,14 +596,16 @@ class KelasTab(_ListTab):
         super().__init__(master, app)
         bar = ttk.Frame(self)
         bar.pack(fill="x", padx=6, pady=(6, 4))
-        for t, c in (("Tambah kelas", self.add), ("Ubah nama", self.rename), ("Hapus", self.delete),
+        ttk.Button(bar, text="+ Tambah kelas", style="Accent.TButton", command=self.add).pack(side="left", padx=(0, 6))
+        for t, c in (("Ubah nama", self.rename), ("Hapus", self.delete),
                      ("◀ Geser kiri", lambda: self.move(-1)), ("Geser kanan ▶", lambda: self.move(1))):
-            ttk.Button(bar, text=t, command=c).pack(side="left", padx=2)
+            ttk.Button(bar, text=t, style="Tool.TButton", command=c).pack(side="left", padx=1)
         self.tv = ttk.Treeview(self, columns=("nama", "wali", "jp"), show="headings", selectmode="browse", height=22)
-        for c, w, t in (("nama", 100, "Kelas"), ("wali", 280, "Wali kelas"), ("jp", 90, "Total JP")):
+        for c, w, t in (("nama", 100, "Kelas"), ("wali", 300, "Wali kelas"), ("jp", 90, "Total JP")):
             self.tv.heading(c, text=t)
-            self.tv.column(c, width=w, anchor="w")
-        self.tv.pack(fill="y", padx=6, pady=4, anchor="w")
+            self.tv.column(c, width=w, anchor="w" if c != "jp" else "center", stretch=False)
+        self.zebra(self.tv)
+        self.tv.pack(fill="y", padx=10, pady=4, anchor="w")
         wf = ttk.Frame(self)
         wf.pack(fill="x", padx=6)
         ttk.Label(wf, text="Wali kelas terpilih:").pack(side="left")
@@ -579,14 +626,13 @@ class KelasTab(_ListTab):
     def reload(self):
         sel = self.tv.selection()
         self.tv.delete(*self.tv.get_children())
-        for k in self.p.kelas:
+        for n, k in enumerate(self.p.kelas):
             g = self.p.guru_by_id(k.wali) if k.wali else None
             jp = sum(a.beban.get(k.id, 0) for a in self.p.penugasan)
-            self.tv.insert("", "end", iid=k.id, values=(k.nama, g.nama if g else "—", jp))
+            self.tv.insert("", "end", iid=k.id, values=(k.nama, g.nama if g else "—", jp),
+                           tags=("odd" if n % 2 else "even",))
         self.cb["values"] = ["(tidak ada)"] + [g.nama for g in self.p.guru]
-        for i in sel:
-            if self.tv.exists(i):
-                self.tv.selection_set(i)
+        self.pulihkan(self.tv, sel)
         self._sync_wali()
 
     def _sync_wali(self):
@@ -660,32 +706,74 @@ class PengaturanTab(_ListTab):
         self._build_jam()
 
     # ---------------------------------------------------------- meta
-    FIELDS = [
-        ("Semester (GANJIL/GENAP)", "semester"), ("Tahun pelajaran (mis. 2025 / 2026)", "tahun"),
-        ("Judul hal. 1 (baris 1)", "judul_beban"), ("Judul hal. 1 (baris 2)", "judul_beban2"),
-        ("Judul jadwal (baris 1)", "j0"), ("Judul jadwal (baris 2)", "j1"), ("Judul jadwal (baris 3)", "j2"),
-        ("Hal. 1 — tempat & tanggal", "b_tt"), ("Hal. 1 — nama penandatangan", "b_nama"), ("Hal. 1 — NIP", "b_nip"),
-        ("Jadwal — tempat & tanggal", "j_tt"), ("Jadwal — jabatan", "j_jab"),
-        ("Jadwal — nama penandatangan", "j_nama"), ("Jadwal — NIP", "j_nip"),
+    # (kunci, label) per kartu. Kunci dipakai juga oleh _load_meta/apply_meta.
+    KARTU_IDENTITAS = [
+        ("semester", "Semester"), ("tahun", "Tahun pelajaran"),
+        ("judul_beban", "Judul hal. 1 (baris 1)"), ("judul_beban2", "Judul hal. 1 (baris 2)"),
+        ("j0", "Judul jadwal (baris 1)"), ("j1", "Judul jadwal (baris 2)"), ("j2", "Judul jadwal (baris 3)"),
     ]
+    KARTU_TTD1 = [("b_tt", "Tempat & tanggal"), ("b_jab", "Jabatan"), ("b_nama", "Nama"), ("b_nip", "NIP")]
+    KARTU_TTD2 = [("j_tt", "Tempat & tanggal"), ("j_jab", "Jabatan"), ("j_nama", "Nama"), ("j_nip", "NIP")]
 
     def _build_meta(self):
         f = self.f_meta
         self.mv: Dict[str, tk.StringVar] = {}
-        for i, (label, key) in enumerate(self.FIELDS):
-            ttk.Label(f, text=label).grid(row=i, column=0, sticky="w", pady=2, padx=(0, 10))
-            v = tk.StringVar()
-            ttk.Entry(f, textvariable=v, width=60).grid(row=i, column=1, sticky="w", pady=2)
-            self.mv[key] = v
-        r = len(self.FIELDS)
+        self._meta_loading = False
+        self._meta_dirty = False
+        f.columnconfigure(0, weight=1, uniform="k")
+        f.columnconfigure(1, weight=1, uniform="k")
+
+        def kartu(judul, fields, col, row, rowspan=1):
+            k = theme.card(f, judul)
+            k.outer.grid(row=row, column=col, rowspan=rowspan, sticky="new",
+                         padx=(0, 8) if col == 0 else (8, 0), pady=(0, 10))
+            k.columnconfigure(1, weight=1)
+            for i, (key, label) in enumerate(fields, start=1):
+                ttk.Label(k, text=label, style="Card.TLabel").grid(row=i, column=0, sticky="w", pady=3, padx=(0, 12))
+                v = tk.StringVar()
+                if key == "semester":
+                    w = ttk.Combobox(k, textvariable=v, values=["GANJIL", "GENAP"], width=36)
+                else:
+                    w = ttk.Entry(k, textvariable=v, width=38)
+                w.grid(row=i, column=1, sticky="ew", pady=3)
+                w.bind("<Return>", lambda e: self.apply_meta())
+                v.trace_add("write", lambda *a: self._meta_changed())
+                self.mv[key] = v
+            return k
+
+        kartu("Identitas & judul cetakan", self.KARTU_IDENTITAS, 0, 0, rowspan=2)
+        kartu("Tanda tangan — Hal. 1 (Beban Mengajar)", self.KARTU_TTD1, 1, 0)
+        kartu("Tanda tangan — Jadwal", self.KARTU_TTD2, 1, 1)
+
+        g = theme.card(f, "Gambar cetakan")
+        g.outer.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(0, 10))
+        self.lbl_kop = ttk.Label(g, text="", style="CardMuted.TLabel")
+        self.lbl_ttd = ttk.Label(g, text="", style="CardMuted.TLabel")
+        ttk.Button(g, text="Ganti gambar kop…", command=lambda: self.pick_image("kop_png")).grid(
+            row=1, column=0, sticky="w", padx=(0, 10))
+        self.lbl_kop.grid(row=1, column=1, sticky="w", padx=(0, 24))
+        ttk.Button(g, text="Ganti gambar tanda tangan…", command=lambda: self.pick_image("ttd_png")).grid(
+            row=1, column=2, sticky="w", padx=(0, 10))
+        self.lbl_ttd.grid(row=1, column=3, sticky="w")
+
         bar = ttk.Frame(f)
-        bar.grid(row=r, column=0, columnspan=2, sticky="w", pady=10)
-        ttk.Button(bar, text="Terapkan perubahan", command=self.apply_meta).pack(side="left")
-        ttk.Button(bar, text="Ganti gambar kop…", command=lambda: self.pick_image("kop_png")).pack(side="left", padx=8)
-        ttk.Button(bar, text="Ganti gambar tanda tangan…", command=lambda: self.pick_image("ttd_png")).pack(side="left")
-        ttk.Label(f, foreground="#555", wraplength=600, justify="left",
+        bar.grid(row=3, column=0, columnspan=2, sticky="ew")
+        self.btn_apply = ttk.Button(bar, text="Terapkan perubahan", style="Accent.TButton", command=self.apply_meta)
+        self.btn_apply.pack(side="left")
+        self.lbl_dirty = ttk.Label(bar, text="", style="Muted.TLabel")
+        self.lbl_dirty.pack(side="left", padx=12)
+        ttk.Label(f, style="Muted.TLabel", wraplength=900, justify="left",
                   text="Tanggal pada cetakan diisi manual di sini (tidak otomatis), "
-                       "supaya tidak ikut berganti sendiri.").grid(row=r + 1, column=0, columnspan=2, sticky="w")
+                       "supaya tidak ikut berganti sendiri.").grid(row=4, column=0, columnspan=2, sticky="w", pady=(8, 0))
+
+    def _meta_changed(self):
+        if not self._meta_loading and not self._meta_dirty:
+            self._meta_dirty = True
+            self.lbl_dirty.config(text="● Ada perubahan yang belum diterapkan", foreground=theme.WARN_FG)
+
+    def _meta_clean(self):
+        self._meta_dirty = False
+        self.lbl_dirty.config(text="")
 
     def _load_meta(self):
         m = self.p.meta
@@ -693,12 +781,19 @@ class PengaturanTab(_ListTab):
                 "judul_beban2": m.judul_beban2,
                 "j0": (m.jadwal_judul + ["", "", ""])[0], "j1": (m.jadwal_judul + ["", "", ""])[1],
                 "j2": (m.jadwal_judul + ["", "", ""])[2],
-                "b_tt": m.beban_ttd.get("tempat_tanggal", ""), "b_nama": m.beban_ttd.get("nama", ""),
+                "b_tt": m.beban_ttd.get("tempat_tanggal", ""), "b_jab": m.beban_ttd.get("jabatan", ""), "b_nama": m.beban_ttd.get("nama", ""),
                 "b_nip": m.beban_ttd.get("nip", ""), "j_tt": m.jadwal_ttd.get("tempat_tanggal", ""),
                 "j_jab": m.jadwal_ttd.get("jabatan", ""), "j_nama": m.jadwal_ttd.get("nama", ""),
                 "j_nip": m.jadwal_ttd.get("nip", "")}
-        for k, v in vals.items():
-            self.mv[k].set(v)
+        self._meta_loading = True
+        try:
+            for k, v in vals.items():
+                self.mv[k].set(v)
+        finally:
+            self._meta_loading = False
+        self._meta_clean()
+        self.lbl_kop.config(text="terpasang" if m.kop_png else "belum ada")
+        self.lbl_ttd.config(text="terpasang" if m.ttd_png else "belum ada")
 
     def apply_meta(self):
         v = {k: x.get() for k, x in self.mv.items()}
@@ -707,7 +802,7 @@ class PengaturanTab(_ListTab):
             m.semester, m.tahun = v["semester"].strip(), v["tahun"].strip()
             m.judul_beban, m.judul_beban2 = v["judul_beban"], v["judul_beban2"]
             m.jadwal_judul = [v["j0"], v["j1"], v["j2"]]
-            m.beban_ttd = {"tempat_tanggal": v["b_tt"], "jabatan": "", "nama": v["b_nama"], "nip": v["b_nip"]}
+            m.beban_ttd = {"tempat_tanggal": v["b_tt"], "jabatan": v["b_jab"], "nama": v["b_nama"], "nip": v["b_nip"]}
             m.jadwal_ttd = {"tempat_tanggal": v["j_tt"], "jabatan": v["j_jab"], "nama": v["j_nama"], "nip": v["j_nip"]}
 
     def pick_image(self, attr):
@@ -742,6 +837,8 @@ class PengaturanTab(_ListTab):
             self.tj.column(c, width=w, anchor="w")
         self.tj.pack(fill="x", pady=8)
         self.tj.bind("<Double-1>", lambda e: self.jam_edit())
+        self._jam_stale = True
+        self.tj.bind("<Map>", lambda e: self._jam_stale and self.fill_jam())
         jf = ttk.Frame(f)
         jf.pack(fill="x")
         ttk.Label(jf, text="Judul nama hari pada cetakan:").pack(side="left")
@@ -755,6 +852,7 @@ class PengaturanTab(_ListTab):
     JENIS = {"blok": "Mapel (2 JP)", "info": "Kegiatan", "jeda": "Istirahat", "tutup": "Tidak dipakai"}
 
     def fill_jam(self):
+        self._jam_stale = False
         self.tj.delete(*self.tj.get_children())
         hari = self.v_hari.get()
         for i, r in enumerate(self.p.hari[hari]["baris"]):
@@ -771,7 +869,11 @@ class PengaturanTab(_ListTab):
 
     def reload(self):
         self._load_meta()
-        self.fill_jam()
+        # daftar jam baru diisi saat tabnya terlihat (menghindari impor modul PDF saat mulai)
+        if self.tj.winfo_viewable():
+            self.fill_jam()
+        else:
+            self._jam_stale = True
 
     def _cur_row(self):
         sel = self.tj.selection()
@@ -904,7 +1006,7 @@ class SemesterBaruDialog(Dialog):
         r += 1
         ttk.Label(b, foreground="#555", wraplength=360, justify="left",
                   text="Isi jadwal selalu dikosongkan. Kelas dan jam pelajaran dibawa sebagaimana adanya; "
-                       "semua bisa diubah lagi.").grid(row=r, column=0, columnspan=2, sticky="w", pady=6)
+                       "semua bisa diubah lagi. Tempat & tanggal tanda tangan dikosongkan; isi ulang di tab Pengaturan.").grid(row=r, column=0, columnspan=2, sticky="w", pady=6)
         self.show()
 
     def collect(self):
@@ -917,6 +1019,9 @@ class SemesterBaruDialog(Dialog):
         m = p.meta
         m.semester, m.tahun = self.v_sem.get(), self.v_th.get().strip()
         th = m.tahun.replace(" ", "")
+        # tanggal cetak semester lama tidak boleh terbawa; operator mengisi ulang di Pengaturan
+        m.beban_ttd = {**m.beban_ttd, "tempat_tanggal": ""}
+        m.jadwal_ttd = {**m.jadwal_ttd, "tempat_tanggal": ""}
         m.jadwal_judul = [f"JADWAL PELAJARAN SEMESTER {m.semester}",
                           (m.jadwal_judul + ["", "", ""])[1], f"TAHUN PELAJARAN {th}"]
         if not self.c_pen.get() or not self.c_guru.get():

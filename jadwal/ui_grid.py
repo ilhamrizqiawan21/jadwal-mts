@@ -314,10 +314,21 @@ class GridView(ttk.Frame):
             c.create_rectangle(x0 + 1, y0 + 1, x1 - 1, y1 - 1, outline="#7a1fa2", width=2, dash=(3, 2))
 
     def _draw_selection(self):
-        self.canvas.delete("sel")
+        c = self.canvas
+        c.delete("sel")
         if self.sel and self.sel in self.cells:
+            hari, bid, kid = self.sel
             x0, y0, x1, y1 = self.cells[self.sel]
-            self.canvas.create_rectangle(x0, y0, x1, y1, outline="#1a5fd0", width=3, tags="sel")
+            # sorot baris (jam yang sama) dan kolom (kelas yang sama) pada hari itu, supaya
+            # mudah dilacak seperti di Excel. Hanya dua garis tipis; tidak menggambar ulang kisi.
+            baris = [v for k, v in self.cells.items() if k[0] == hari and k[1] == bid]
+            kolom = [v for k, v in self.cells.items() if k[0] == hari and k[2] == kid]
+            for band in (baris, kolom):
+                if len(band) > 1:
+                    c.create_rectangle(min(b[0] for b in band), min(b[1] for b in band),
+                                       max(b[2] for b in band), max(b[3] for b in band),
+                                       outline="#6F9BF0", width=2, tags="sel")
+            c.create_rectangle(x0, y0, x1, y1, outline="#1a5fd0", width=3, tags="sel")
 
     # --------------------------------------------------------------- pilihan
     def _cell_at(self, x, y):

@@ -24,6 +24,7 @@ class Masalah:
     pesan: str
     sel: List[Sel] = field(default_factory=list)
     guru: str = ""
+    ringkas: str = ""               # teks pendek untuk daftar di panel (pesan lengkap tetap di `pesan`)
 
 
 @dataclass
@@ -71,7 +72,8 @@ def periksa(p: Proyek) -> Hasil:
             names = ", ".join(guru_nama.get(g, "?") for g in sorted(gids))
             tambah(Masalah("kode_ganda", WARN,
                            f"Kode {kode} dipakai oleh lebih dari satu guru ({names}); "
-                           f"pengecekan memakai guru pertama.", guru=lst[0].guru))
+                           f"pengecekan memakai guru pertama.", guru=lst[0].guru,
+                           ringkas=f"Kode {kode} dipakai {len(gids)} guru"))
 
     # kode yang dipegang >1 guru (mis. PJOK putra/putri): kapasitas = jumlah pemegang
     holders = {k: {a.guru for a in lst} for k, lst in seen.items()}
@@ -108,7 +110,8 @@ def periksa(p: Proyek) -> Hasil:
                             "kode_asing", ERROR,
                             f"Kode \"{kode}\" tidak ada di Beban Mengajar "
                             f"({label_waktu(p, hari, blok_id)}, kelas {nama_kelas[kid]}).",
-                            [sel]))
+                            [sel], ringkas=f"Kode \"{kode}\" tidak dikenal · {nama_kelas[kid]} · "
+                                           f"{label_waktu(p, hari, blok_id)}"))
     h.terpasang = dict(cnt)
 
     # bentrok: guru yang sama di dua kelas pada JP yang sama
@@ -127,7 +130,9 @@ def periksa(p: Proyek) -> Hasil:
                 f"BENTROK: {guru_nama.get(gid, 'kode ' + gid[5:] + ' (dipegang beberapa guru)')} "
                 f"(kode {', '.join(kodes)}) mengajar di "
                 f"{kn} sekaligus pada {label_waktu(p, hari, blok_id, half)}.",
-                [(hari, blok_id, k) for k in kelas_unik], "" if gid.startswith("kode:") else gid))
+                [(hari, blok_id, k) for k in kelas_unik], "" if gid.startswith("kode:") else gid,
+                ringkas=f"{guru_nama.get(gid, 'Kode ' + gid[5:])} · {' & '.join(nama_kelas[k] for k in kelas_unik)}"
+                        f" · {label_waktu(p, hari, blok_id, half)}"))
 
     # jam yang diminta kosong oleh guru (mengajar di tempat lain)
     for hari, per_blok in ((hh, p.jadwal.get(hh, {})) for hh in HARI):
@@ -147,7 +152,8 @@ def periksa(p: Proyek) -> Hasil:
                             "tidak_bisa", ERROR,
                             f"{g.nama} meminta jam ini kosong ({label_waktu(p, hari, blok_id)}) "
                             f"tetapi ditempatkan di kelas {nama_kelas[kid]} (kode {kode}).",
-                            [(hari, blok_id, kid)], gid))
+                            [(hari, blok_id, kid)], gid,
+                            ringkas=f"{g.nama} · {nama_kelas[kid]} · {label_waktu(p, hari, blok_id)}"))
 
     # beban JP per kode per kelas (hanya untuk kode yang punya beban per kelas)
     for a in p.penugasan:
@@ -167,12 +173,14 @@ def periksa(p: Proyek) -> Hasil:
                     "beban_lebih", ERROR,
                     f"Kelebihan jam: kode {a.kode} ({g}) di {k.nama} terpasang {ada} JP, "
                     f"bebannya {target} JP.",
-                    cells_of.get((a.kode.upper(), k.id), []), a.guru))
+                    cells_of.get((a.kode.upper(), k.id), []), a.guru,
+                    ringkas=f"Kode {a.kode} · {k.nama}: {ada} dari {target} JP (lebih)"))
             else:
                 tambah(Masalah(
                     "beban_kurang", INFO,
                     f"Belum lengkap: kode {a.kode} ({g}) di {k.nama} baru {ada} dari "
-                    f"{target} JP.", [], a.guru))
+                    f"{target} JP.", [], a.guru,
+                    ringkas=f"Kode {a.kode} · {k.nama}: {ada} dari {target} JP"))
     return h
 
 
