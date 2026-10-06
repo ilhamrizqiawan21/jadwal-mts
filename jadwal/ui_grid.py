@@ -7,9 +7,9 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Dict, List, Optional, Tuple
 
-from . import checks, model as M
+from . import checks, model as M, theme
 
-HEAD = "#DCE6F0"
+HEAD = theme.GRID_HEAD
 FONT = "Segoe UI"
 
 
@@ -53,11 +53,11 @@ class GridView(ttk.Frame):
         for h in M.HARI:
             ttk.Radiobutton(self.day_bar, text=h, value=h, variable=self.v_day, style="Toolbutton",
                             command=self._day_changed).pack(side="left", padx=1)
-        self.canvas = tk.Canvas(self, background="white", highlightthickness=0, takefocus=1)
+        self.canvas = tk.Canvas(self, background=theme.BG, highlightthickness=0, takefocus=1)
         self.vbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
         self.hbar = ttk.Scrollbar(self, orient="horizontal", command=self.canvas.xview)
         self.canvas.configure(yscrollcommand=self.vbar.set, xscrollcommand=self.hbar.set)
-        self.canvas.grid(row=1, column=0, sticky="nsew")
+        self.canvas.grid(row=1, column=0, sticky="nsew", padx=(8, 0), pady=(6, 0))
         self.vbar.grid(row=1, column=1, sticky="ns")
         self.hbar.grid(row=2, column=0, sticky="ew")
         self.rowconfigure(1, weight=1)
@@ -212,11 +212,11 @@ class GridView(ttk.Frame):
                 x += (block_w if d else 160 * z) + gap
             ytop_rows = y + th + lh
             # sumbu kiri
-            c.create_rectangle(0, y, ax_no + ax_wk, y + th + lh, fill=HEAD, outline="#888")
+            c.create_rectangle(0, y, ax_no + ax_wk, y + th + lh, fill=HEAD, outline=theme.GRID_EDGE)
             c.create_text(ax_no + ax_wk / 2, y + (th + lh) / 2, text="NO   WAKTU", font=(FONT, fs - 1, "bold"))
             for k, (kind, r) in enumerate(ref):
                 ya = ytop_rows + k * rh
-                c.create_rectangle(0, ya, ax_no + ax_wk, ya + rh, fill="white", outline="#aaa")
+                c.create_rectangle(0, ya, ax_no + ax_wk, ya + rh, fill=theme.SURFACE, outline=theme.GRID_LINE)
                 if kind == "blok":
                     pass
             # nomor jam & waktu (per JP)
@@ -238,7 +238,7 @@ class GridView(ttk.Frame):
                         c.create_text(ax_no + ax_wk / 2, ya + rh / 2, text=r["waktu"][h], font=(FONT, fs - 1))
                 else:
                     c.create_text((ax_no + ax_wk) / 2, ya + rh / 2, text=r.get("waktu", ""),
-                                  fill="#c00000", font=(FONT, fs - 1, "bold"))
+                                  fill=theme.ERR_FG, font=(FONT, fs - 1, "bold"))
                 k += 1
             # blok hari
             for di, hari in enumerate(days):
@@ -246,11 +246,12 @@ class GridView(ttk.Frame):
                 if hari is None:
                     self._panel(x0, y, th, lh, rh, ytop_rows, nr, fs, z)
                     continue
-                c.create_rectangle(x0, y, x0 + block_w, y + th, fill="white", outline="#888")
-                c.create_text(x0 + block_w / 2, y + th / 2, text=hari.upper(), font=(FONT, fs + 1, "bold"))
+                c.create_rectangle(x0, y, x0 + block_w, y + th, fill=theme.GRID_DAY, outline=theme.GRID_EDGE)
+                c.create_text(x0 + block_w / 2, y + th / 2, text=hari.upper(), fill=theme.ACCENT_DK,
+                              font=(FONT, fs + 1, "bold"))
                 for i, k_ in enumerate(p.kelas):
                     xa = x0 + i * cw
-                    c.create_rectangle(xa, y + th, xa + cw, y + th + lh, fill=HEAD, outline="#888")
+                    c.create_rectangle(xa, y + th, xa + cw, y + th + lh, fill=HEAD, outline=theme.GRID_EDGE)
                     c.create_text(xa + cw / 2, y + th + lh / 2, text=k_.nama, font=fb)
                 lay = lays[di]
                 k = 0
@@ -262,14 +263,14 @@ class GridView(ttk.Frame):
                     ya = ytop_rows + k * rh
                     if kind == "info":
                         fill = r.get("warna") or "white"
-                        c.create_rectangle(x0, ya, x0 + block_w, ya + rh, fill=fill, outline="#888")
+                        c.create_rectangle(x0, ya, x0 + block_w, ya + rh, fill=fill, outline=theme.GRID_EDGE)
                         c.create_text(x0 + block_w / 2, ya + rh / 2, text=r["label"],
-                                      fill="black" if r.get("warna") else "#c00000", font=(FONT, fs - 1, "bold"))
+                                      fill="black" if r.get("warna") else theme.ERR_FG, font=(FONT, fs - 1, "bold"))
                     elif kind == "jeda":
-                        c.create_rectangle(x0, ya, x0 + block_w, ya + rh, fill="#f4f4f4", outline="#aaa")
+                        c.create_rectangle(x0, ya, x0 + block_w, ya + rh, fill=theme.GRID_REST, outline=theme.GRID_LINE)
                         c.create_text(x0 + block_w / 2, ya + rh / 2, text=r.get("label", ""), font=(FONT, fs - 1, "bold"))
                     elif kind == "tutup":
-                        c.create_rectangle(x0, ya, x0 + block_w, ya + rh, fill="black", outline="black")
+                        c.create_rectangle(x0, ya, x0 + block_w, ya + rh, fill=theme.GRID_CLOSED, outline=theme.GRID_CLOSED)
                     elif kind == "blok":
                         bid = r["id"]
                         for i, k_ in enumerate(p.kelas):
@@ -287,18 +288,21 @@ class GridView(ttk.Frame):
             y = ytop_rows + nr * rh + 10 * z
             self._max_x = max(self._max_x, x_blocks[-1] + (160 * z))
         c.configure(scrollregion=(0, 0, self._max_x + 10, y))
+        lbl = getattr(self.app, "zoom_lbl", None)
+        if lbl is not None:
+            lbl.config(text=f"{round(self.zoom * 100)}%")
         self._draw_selection()
 
     def _panel(self, x0, y, th, lh, rh, ytop_rows, nr, fs, z):
         """Waktu Jumat (panel kanan-bawah pada cetakan)."""
         c = self.canvas
         w = 160 * z
-        c.create_rectangle(x0, y, x0 + w, y + th + lh, fill=HEAD, outline="#888")
+        c.create_rectangle(x0, y, x0 + w, y + th + lh, fill=HEAD, outline=theme.GRID_EDGE)
         c.create_text(x0 + w / 2, y + (th + lh) / 2, text="JAM JUM'AT", font=(FONT, fs, "bold"))
         k = 0
         for kind, r in _expand(self.p.hari["Jumat"]["baris"]):
             ya = ytop_rows + k * rh
-            c.create_rectangle(x0, ya, x0 + w, ya + rh, fill="white", outline="#aaa")
+            c.create_rectangle(x0, ya, x0 + w, ya + rh, fill=theme.SURFACE, outline=theme.GRID_LINE)
             if kind == "blok":
                 pass
             k += 1
@@ -314,10 +318,10 @@ class GridView(ttk.Frame):
                 k += 2
                 continue
             if kind in ("info", "jeda"):
-                c.create_text(x0 + w / 2, ya + rh / 2, text=r.get("waktu", ""), fill="#c00000",
+                c.create_text(x0 + w / 2, ya + rh / 2, text=r.get("waktu", ""), fill=theme.ERR_FG,
                               font=(FONT, fs - 1, "bold"))
             elif kind == "tutup":
-                c.create_text(x0 + w / 2, ya + rh / 2, text=r.get("label", ""), fill="#c00000",
+                c.create_text(x0 + w / 2, ya + rh / 2, text=r.get("label", ""), fill=theme.ERR_FG,
                               font=(FONT, fs - 1, "bold"))
             k += 1
 
@@ -333,7 +337,7 @@ class GridView(ttk.Frame):
             if kodes:
                 a = by_kode.get(kodes[-1].upper())
                 fill = a.warna if a else "#ffd9d9"
-            c.create_rectangle(x0, ya, x1, yb, fill=fill, outline="#999")
+            c.create_rectangle(x0, ya, x1, yb, fill=fill, outline=theme.GRID_LINE)
             txt = M.cell_text(kodes)
             if txt:
                 unknown = any(k.upper() not in by_kode for k in kodes)
@@ -341,8 +345,8 @@ class GridView(ttk.Frame):
                 c.create_text((x0 + x1) / 2, (ya + yb) / 2, text=txt,
                               fill="#cc0000" if unknown else "black", font=(FONT, size, "bold"))
         if (hari, bid, kid) in bad:
-            c.create_rectangle(x0 + 1, y0 + 1, x1 - 1, y1 - 1, outline="#e60000", width=2)
-            c.create_polygon(x1 - 8, y0 + 1, x1 - 1, y0 + 1, x1 - 1, y0 + 8, fill="#e60000", outline="")
+            c.create_rectangle(x0 + 1, y0 + 1, x1 - 1, y1 - 1, outline=theme.BAD, width=2)
+            c.create_polygon(x1 - 8, y0 + 1, x1 - 1, y0 + 1, x1 - 1, y0 + 8, fill=theme.BAD, outline="")
         if hl_kodes and any(k.upper() in hl_kodes for k in jp[0] + jp[1]):
             c.create_rectangle(x0 + 1, y0 + 1, x1 - 1, y1 - 1, outline="#7a1fa2", width=2, dash=(3, 2))
 
@@ -360,8 +364,8 @@ class GridView(ttk.Frame):
                 if len(band) > 1:
                     c.create_rectangle(min(b[0] for b in band), min(b[1] for b in band),
                                        max(b[2] for b in band), max(b[3] for b in band),
-                                       outline="#6F9BF0", width=2, tags="sel")
-            c.create_rectangle(x0, y0, x1, y1, outline="#1a5fd0", width=3, tags="sel")
+                                       outline=theme.GRID_BAND, width=2, tags="sel")
+            c.create_rectangle(x0, y0, x1, y1, outline=theme.ACCENT, width=3, tags="sel")
 
     # --------------------------------------------------------------- pilihan
     def _cell_at(self, x, y):

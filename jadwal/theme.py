@@ -22,6 +22,16 @@ ACCENT_LT = "#E4ECFD"
 HOVER = "#E8ECF4"
 SELECT = "#CFE0FF"
 
+# kisi jadwal (kanvas): garis lembut, judul berwarna, jam tutup abu gelap (bukan hitam pekat)
+GRID_EDGE = "#9AA5B8"       # tepi blok/judul
+GRID_LINE = "#B9C2D0"       # garis antar sel
+GRID_HEAD = "#E3EBF6"       # judul kelas & sumbu waktu
+GRID_DAY = ACCENT_LT        # judul hari
+GRID_REST = "#EEF1F6"       # baris istirahat
+GRID_CLOSED = "#2F3542"     # jam tidak dipakai
+GRID_BAND = "#8FB0F5"       # sorot baris/kolom sel terpilih
+BAD = "#D92D20"             # sel bentrok
+
 ERR_FG, ERR_BG = "#B42318", "#FDE8E6"
 WARN_FG, WARN_BG = "#9A5B00", "#FFF1D6"
 INFO_FG, INFO_BG = "#475467", "#EAECF0"
@@ -108,9 +118,12 @@ def apply(root: tk.Misc):
     s.layout("Treeview", [("Treeview.treearea", {"sticky": "nswe"})])    # tanpa garis fokus
 
     # bilah gulir tipis
-    for orient in ("Vertical", "Horizontal"):
+    for orient, sisi in (("Vertical", "ns"), ("Horizontal", "ew")):
+        # tanpa tombol panah: hanya jalur + gagang, lebih ramping
+        s.layout(f"{orient}.TScrollbar", [(f"{orient}.Scrollbar.trough", {"sticky": sisi, "children": [
+            (f"{orient}.Scrollbar.thumb", {"expand": "1", "sticky": "nswe"})]})])
         s.configure(f"{orient}.TScrollbar", background="#C3CAD6", troughcolor=BG, bordercolor=BG,
-                    lightcolor="#C3CAD6", darkcolor="#C3CAD6", arrowsize=12, relief="flat")
+                    lightcolor="#C3CAD6", darkcolor="#C3CAD6", arrowsize=11, relief="flat", gripcount=0)
         s.map(f"{orient}.TScrollbar", background=[("active", "#9AA4B5"), ("pressed", "#7F8AA0")])
     s.configure("TPanedwindow", background=BG)
     s.configure("Sash", sashthickness=6, background=BG)

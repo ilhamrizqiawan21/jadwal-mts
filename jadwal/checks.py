@@ -185,28 +185,48 @@ def periksa(p: Proyek) -> Hasil:
 
 
 def preview(p: Proyek, hari: str, blok_id: str, kid: str, jp) -> List[str]:
-    """Peringatan langsung saat operator mengetik (sebelum sel disimpan)."""
+    """Peringatan langsung saat operator mengetik (sebelum sel disimpan).
+
+    Aturan kapasitas sama dengan `periksa`: kode yang dipegang >1 guru boleh dipakai
+    di sebanyak pemegangnya kelas pada JP yang sama.
+    """
     by_kode = p.penugasan_by_kode()
     nama_kelas = {k.id: k.nama for k in p.kelas}
+    holders: Dict[str, set] = defaultdict(set)
+    for a in p.penugasan:
+        if a.kode:
+            holders[a.kode.upper()].add(a.guru)
+
+    def kunci(kode: str):
+        """(kunci pemakaian, kapasitas) untuk satu kode; None bila kode tak dikenal."""
+        a = by_kode.get(kode.upper())
+        if a is None:
+            return None
+        pemegang = holders.get(kode.upper(), {a.guru})
+        return (a.guru if len(pemegang) == 1 else "kode:" + kode.upper()), len(pemegang)
+
     out: List[str] = []
     row = p.jadwal.get(hari, {}).get(blok_id, {})
     seen = set()
     for half in (0, 1):
         for kode in jp[half]:
-            a = by_kode.get(kode.upper())
-            if not a:
+            kk = kunci(kode)
+            if kk is None:
                 continue
+            gkey, kapasitas = kk
+            a = by_kode[kode.upper()]
+            lain = [k2 for k2, other in row.items()
+                    if k2 != kid and any((kk2 := kunci(c)) and kk2[0] == gkey for c in other[half])]
+            if len(lain) + 1 > kapasitas and (gkey, tuple(lain)) not in seen:
+                seen.add((gkey, tuple(lain)))
+                g = p.guru_by_id(a.guru)
+                nama = (g.nama if g else "?") if not gkey.startswith("kode:")                     else f"Kode {kode.upper()} (dipegang beberapa guru)"
+                kn = " dan ".join(nama_kelas.get(k2, "?") for k2 in lain)
+                out.append(f"BENTROK: {nama} sudah mengajar di {kn} "
+                           f"pada {label_waktu(p, hari, blok_id)}")
             g = p.guru_by_id(a.guru)
-            gname = g.nama if g else "?"
-            for k2, other in row.items():
-                if k2 == kid or (a.guru, k2) in seen:
-                    continue
-                if any(by_kode.get(c.upper()) and by_kode[c.upper()].guru == a.guru for c in other[half]):
-                    seen.add((a.guru, k2))
-                    out.append(f"BENTROK: {gname} sudah mengajar di {nama_kelas.get(k2, '?')} "
-                               f"pada {label_waktu(p, hari, blok_id)}")
             if g and blok_id in g.tidak_bisa.get(hari, []):
-                msg = f"{gname} meminta jam ini kosong"
+                msg = f"{g.nama} meminta jam ini kosong"
                 if msg not in out:
                     out.append(msg)
     return out

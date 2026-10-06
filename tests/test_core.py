@@ -152,3 +152,87 @@ def test_edit_error_mengembalikan_data():
             pp.kelas.clear()
             raise RuntimeError("x")
     assert len(s.p.kelas) == 3 and not s.undo_stack and not s.dirty
+
+
+def test_preview_kode_multi_pemegang_ikut_kapasitas():
+    p, k, ga, gb = mini()
+    gc = M.Guru(p.new_id("g"), "Guru C")
+    p.guru.append(gc)
+    p.penugasan.append(M.Penugasan(p.new_id("a"), gc.id, "9", "PKN", "#0000FF", beban={k[0]: 2}))
+    p.set_cell("Senin", "B1", k[0], ["9"])
+    # dua pemegang kode "9": kelas kedua masih boleh, kelas ketiga tidak
+    assert C.preview(p, "Senin", "B1", k[1], [["9"], ["9"]]) == []
+    p.set_cell("Senin", "B1", k[1], ["9"])
+    msgs = C.preview(p, "Senin", "B1", k[2], [["9"], ["9"]])
+    assert len(msgs) == 1 and "BENTROK" in msgs[0]
+
+
+def test_pangkas_cadangan_tidak_menyentuh_proyek_lain(tmp_path):
+    f = str(tmp_path / "jadwal.jadwal")
+    p = M.Proyek()
+    M.save(p, f)
+    bdir = tmp_path / "cadangan"
+    bdir.mkdir(exist_ok=True)
+    lain = [bdir / f"jadwal-genap-2026010{i}-000000.jadwal" for i in range(3)]
+    milik = [bdir / f"jadwal-2025010{i}-000000.jadwal" for i in range(3)]
+    for x in lain + milik:
+        x.write_text("x")
+    M.save(p, f, backups=2)
+    ada = {x.name for x in bdir.iterdir()}
+    assert all(x.name in ada for x in lain)                     # proyek lain utuh
+    punya = sorted(n for n in ada if n.startswith("jadwal-2") or (n.startswith("jadwal-") and "genap" not in n))
+    assert len(punya) == 2 and milik[0].name not in ada         # hanya milik sendiri yang dipangkas
+
+
+def test_berkas_dengan_field_asing_tetap_terbuka():
+    d = M.load(SAMPLE).to_dict()
+    d["guru"][0]["field_baru"] = 1
+    d["kelas"][0]["x"] = 1
+    d["penugasan"][0]["y"] = 1
+    d["meta"]["z"] = 1
+    q = M.Proyek.from_dict(d)
+    assert q.guru[0].nama == d["guru"][0]["nama"] and q.meta.sekolah == d["meta"]["sekolah"]
+
+
+def _y_label_kelas(p, tmp_path):
+    """y atas sel judul kelas (biru) tiap grup pada hal. Jadwal."""
+    ys = []
+    asli = E.Pen.rect
+
+    def rekam(self, x0, y0, x1, y1, fill=None, stroke=True, lw=E.LINE):
+        if fill == E.HEAD_BLUE:
+            ys.append(round(y0, 1))
+        return asli(self, x0, y0, x1, y1, fill, stroke, lw)
+    E.Pen.rect = rekam
+    try:
+        E.export_pdf(p, str(tmp_path / "a.pdf"), halaman=("jadwal",))
+    finally:
+        E.Pen.rect = asli
+    return sorted(set(ys))
+
+
+def test_pdf_jadwal_posisi_bawaan_tidak_berubah(tmp_path):
+    assert _y_label_kelas(M.load(SAMPLE), tmp_path) == [51.8, 234.9]
+
+
+def test_pdf_jadwal_baris_tambahan_menggeser_grup_kedua(tmp_path):
+    p = M.load(SAMPLE)
+    rows = p.hari["Selasa"]["baris"]
+    for i in range(3):
+        rows.append({"t": "blok", "id": f"X{i}", "jam": [11 + 2 * i, 12 + 2 * i], "waktu": ["a", "b"]})
+    # 6 baris cetak tambahan: grup pertama berakhir di 64,1 + 19 * 12,2 = 295,9
+    assert _y_label_kelas(p, tmp_path) == [51.8, 308.1]
+
+
+def test_xlsx_teks_operator_tidak_jadi_formula_dan_karakter_kontrol(tmp_path):
+    import openpyxl
+    from jadwal.export_xlsx import export_xlsx
+    p = M.load(SAMPLE)
+    p.penugasan[0].mapel = "=1+1"
+    p.guru[0].nama = "Budi\x07"
+    p.meta.beban_ttd["jabatan"] = "Kepala\x07"
+    f = str(tmp_path / "a.xlsx")
+    export_xlsx(p, f)
+    ws = openpyxl.load_workbook(f)["Beban Mengajar"]
+    assert not any(c.data_type == "f" for row in ws.iter_rows() for c in row)
+    assert any(c.value == "=1+1" for row in ws.iter_rows() for c in row)

@@ -12,6 +12,7 @@ from typing import List
 
 from openpyxl import Workbook
 from openpyxl.drawing.image import Image as XLImage
+from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
 from openpyxl.cell.rich_text import CellRichText, TextBlock
 from openpyxl.cell.text import InlineFont
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
@@ -31,6 +32,11 @@ def _w(pt: float) -> float:
     """Lebar kolom Excel (karakter) dari titik, sudah diskalakan."""
     px = pt * SCALE / 0.75
     return max(0.5, (px - 5) / 7)
+
+
+def _txt(v):
+    """Teks aman untuk sel: buang karakter kontrol yang ditolak Excel."""
+    return ILLEGAL_CHARACTERS_RE.sub("", v) if isinstance(v, str) else v
 
 
 def _fill(hexcol):
@@ -58,7 +64,9 @@ def _put(ws, r, c, v=None, font=None, fill=None, align="center", border=BOX, rot
                 cell.fill = fill
     cell = ws.cell(r, c)
     if v is not None:
-        cell.value = v
+        cell.value = _txt(v)
+        if isinstance(cell.value, str) and cell.value.startswith("="):
+            cell.data_type = "s"        # teks operator tidak boleh dibaca sebagai formula
     if font:
         cell.font = font
     cell.alignment = Alignment(horizontal=align, vertical=valign, text_rotation=rot or 0, wrap_text=wrap,
@@ -219,8 +227,8 @@ def _sheet_beban(wb: Workbook, p: Proyek):
                 wrap=bool(jab))
     if jab:     # jabatan tebal & lebih kecil pada baris kedua sel yang sama (seperti cetakan PDF)
         c_tt.value = CellRichText(
-            TextBlock(InlineFont(rFont="Tahoma", sz=round(9.2 * SCALE * 2) / 2), tt + "\n"),
-            TextBlock(InlineFont(rFont="Tahoma", sz=round(7.0 * SCALE * 2) / 2, b=True), jab))
+            TextBlock(InlineFont(rFont="Tahoma", sz=round(9.2 * SCALE * 2) / 2), _txt(tt) + "\n"),
+            TextBlock(InlineFont(rFont="Tahoma", sz=round(7.0 * SCALE * 2) / 2, b=True), _txt(jab)))
     ws.row_dimensions[rs + 1].height = 64 * SCALE
     _img(ws, m.ttd_png, f"{L(cw - 6)}{rs + 1}", 89, 51)
     ws.row_dimensions[rs + 2].height = 11 * SCALE

@@ -11,7 +11,7 @@ import os
 import re
 import tempfile
 import time
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field, asdict, fields
 from typing import Dict, List, Optional
 
 FORMAT_VERSION = 1
@@ -82,6 +82,13 @@ def default_hari() -> Dict[str, dict]:
         "Kamis": {"baris": hari_biasa(kamis=True)},
         "Jumat": {"baris": jumat},
     }
+
+
+def _buat(cls, d: dict):
+    """Buat dataclass dari dict; field yang tidak dikenal (mis. dari versi aplikasi
+    lain dengan format sama) diabaikan, bukan membuat berkas gagal dibuka."""
+    dikenal = {f.name for f in fields(cls)}
+    return cls(**{k: v for k, v in d.items() if k in dikenal})
 
 
 # --------------------------------------------------------------------- entitas
@@ -215,10 +222,10 @@ class Proyek:
                 f"Berkas dibuat oleh versi aplikasi yang lebih baru (format {versi}, "
                 f"aplikasi ini mendukung sampai {FORMAT_VERSION}). Perbarui aplikasi.")
         p = Proyek()
-        p.meta = Meta(**{**asdict(Meta()), **d.get("meta", {})})
-        p.kelas = [Kelas(**k) for k in d.get("kelas", [])]
-        p.guru = [Guru(**g) for g in d.get("guru", [])]
-        p.penugasan = [Penugasan(**x) for x in d.get("penugasan", [])]
+        p.meta = _buat(Meta, {**asdict(Meta()), **d.get("meta", {})})
+        p.kelas = [_buat(Kelas, k) for k in d.get("kelas", [])]
+        p.guru = [_buat(Guru, g) for g in d.get("guru", [])]
+        p.penugasan = [_buat(Penugasan, x) for x in d.get("penugasan", [])]
         p.hari = d.get("hari") or default_hari()
         p.jadwal = d.get("jadwal", {})
         p.seq = d.get("seq", 0)
@@ -292,7 +299,8 @@ def save(p: Proyek, path: str, backups: int = 30):
                 with open(path, "rb") as src, \
                         open(os.path.join(bdir, f"{base}-{stamp}.jadwal"), "wb") as dst:
                     dst.write(src.read())
-                olds = sorted(x for x in os.listdir(bdir) if x.startswith(base + "-"))
+                pola = re.compile(re.escape(base) + r"-\d{8}-\d{6}\.jadwal")
+                olds = sorted(x for x in os.listdir(bdir) if pola.fullmatch(x))
                 for x in olds[:-backups]:
                     os.remove(os.path.join(bdir, x))
             except OSError:

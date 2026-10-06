@@ -166,9 +166,10 @@ class App(tk.Tk):
         tombol("Ekspor PDF", self.export_pdf, "Buat PDF siap cetak (hal. 1 beban + hal. 2 jadwal)")
         tombol("Ekspor Excel", self.export_xlsx, "Buat berkas Excel dengan format yang sama")
         pemisah()
-        tombol("–", lambda: self.gv.set_zoom(self.gv.zoom - 0.1), "Perkecil kisi jadwal", width=3)
-        ttk.Label(top, text="Zoom", foreground=theme.MUTED).pack(side="left", padx=2)
-        tombol("+", lambda: self.gv.set_zoom(self.gv.zoom + 0.1), "Perbesar kisi jadwal", width=3)
+        tombol("−", lambda: self.gv.set_zoom(self.gv.zoom - 0.1), "Perkecil kisi jadwal", width=2)
+        self.zoom_lbl = ttk.Label(top, text="100%", foreground=theme.MUTED, width=5, anchor="center")
+        self.zoom_lbl.pack(side="left")
+        tombol("+", lambda: self.gv.set_zoom(self.gv.zoom + 0.1), "Perbesar kisi jadwal", width=2)
         self.file_lbl = ttk.Label(top, text="", foreground=theme.MUTED)
         self.file_lbl.pack(side="right", padx=6)
 
@@ -227,7 +228,8 @@ class App(tk.Tk):
         self.nb.add(self.tab_set, text="  Pengaturan & Jam  ")
 
         sb = ttk.Frame(self)
-        sb.pack(fill="x", padx=10, pady=(0, 8))
+        sb.pack(fill="x", side="bottom", padx=12, pady=(5, 6))
+        ttk.Separator(self).pack(fill="x", side="bottom")
         self.hint = tk.Label(sb, text="", anchor="w", font=(FONT, 10), bg=theme.BG, fg=theme.TEXT)
         self.hint.pack(side="left", fill="x", expand=True)
         self.info = ttk.Label(sb, text="", foreground=theme.MUTED)
@@ -310,7 +312,7 @@ class App(tk.Tk):
             self.tv_code.heading(c, text=t)
             self.tv_code.column(c, width=w, anchor="w" if c != "sisa" else "center")
         ttk.Label(kf, text="Klik kode: sorot guru.  Klik dua kali: isi sel terpilih.",
-                  wraplength=280, foreground="#555").pack(side="bottom", anchor="w", padx=3, pady=3)
+                  wraplength=280, foreground=theme.MUTED).pack(side="bottom", anchor="w", padx=3, pady=3)
         sb2 = ttk.Scrollbar(kf, command=self.tv_code.yview)
         sb2.pack(side="right", fill="y")
         self.tv_code.pack(side="left", fill="both", expand=True)
@@ -428,7 +430,7 @@ class App(tk.Tk):
 
     def show_hint(self, hint):
         text, bad = hint
-        self.hint.config(text=text, fg="#c00000" if bad else "#333333")
+        self.hint.config(text=text, fg=theme.ERR_FG if bad else theme.TEXT)
 
     def alert(self, masalah: List[checks.Masalah]):
         """Peringatan aktif saat sebuah perubahan menimbulkan bentrok baru."""
@@ -493,7 +495,7 @@ class App(tk.Tk):
             return self.save_as()
         try:
             self.store.save()
-        except OSError as ex:
+        except Exception as ex:
             messagebox.showerror(APP_NAME, f"Gagal menyimpan:\n{ex}")
             return False
         return True
@@ -506,7 +508,7 @@ class App(tk.Tk):
             return False
         try:
             self.store.save(path)
-        except OSError as ex:
+        except Exception as ex:
             messagebox.showerror(APP_NAME, f"Gagal menyimpan:\n{ex}")
             return False
         self.cfg["last"] = path
@@ -556,17 +558,20 @@ class App(tk.Tk):
         SemesterBaruDialog(self)
 
     def _autosave(self):
-        if self.store.dirty and self.store.path:
-            try:
-                self.store.save()
-                gagal = False
-            except OSError as ex:
-                gagal = True
-                self.show_hint((f"Simpan otomatis GAGAL: {ex}. Simpan manual (Ctrl+S) ke lokasi lain.", True))
-            if gagal != self._autosave_gagal:
-                self._autosave_gagal = gagal
-                self.refresh()
-        self.after(60000, self._autosave)
+        try:
+            if self.store.dirty and self.store.path:
+                try:
+                    self.store.save()
+                    gagal = False
+                except Exception as ex:
+                    gagal = True
+                    self.show_hint((f"Simpan otomatis GAGAL: {ex}. Simpan manual (Ctrl+S) ke lokasi lain.", True))
+                if gagal != self._autosave_gagal:
+                    self._autosave_gagal = gagal
+                    self.refresh()
+        finally:
+            # penjadwalan ulang tidak boleh ikut terputus oleh error apa pun
+            self.after(60000, self._autosave)
 
     def quit_app(self):
         if not self._confirm_discard():

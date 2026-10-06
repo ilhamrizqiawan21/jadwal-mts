@@ -459,18 +459,28 @@ def draw_jadwal(c: canvas.Canvas, p: Proyek):
     for i, line in enumerate(m.jadwal_judul[:3]):
         pen.btext(435.1 if i == 0 else 451.6, 23.4 + 9.2 * i, line, "Tahoma-Bold", 7.0)
 
+    rh = 12.2
+    n_hari = [max(len(_expand(_day_rows(p, d))) for d in dd) for dd in (["Selasa", "Rabu", "Kamis"],
+                                                                      ["Senin", "Jumat"])]
+    n_jumat = len(_expand(_day_rows(p, "Jumat")))
+
+    def tata(rh):
+        """Grup kedua digeser ke bawah bila grup pertama lebih tinggi dari bawaan
+        (13 baris); dasar kolom Jumat menentukan letak tanda tangan."""
+        geser = max(0.0, 64.1 + n_hari[0] * rh - 222.7)
+        dasar_jumat = 247.3 + geser + n_jumat * rh
+        bawah = 247.3 + geser + max(n_hari[1] * rh, n_jumat * rh + 54.3)
+        return geser, dasar_jumat, bawah
+
+    while tata(rh)[2] > H - 12 and rh > 6.0:
+        rh -= 0.1
+    geser, dasar_jumat, _ = tata(rh)
     groups = [
         dict(days=["Selasa", "Rabu", "Kamis"], title=(43.4, 51.8), labels=(51.8, 64.1),
              rows=64.1, top=True),
-        dict(days=["Senin", "Jumat", None], title=(222.7, 234.9), labels=(234.9, 247.3),
-             rows=247.3, top=False),
+        dict(days=["Senin", "Jumat", None], title=(222.7 + geser, 234.9 + geser),
+             labels=(234.9 + geser, 247.3 + geser), rows=247.3 + geser, top=False),
     ]
-    rh = 12.2
-    # tinggi baris bila jumlah baris lebih banyak dari bawaan
-    maxrows = [max(len(_expand(_day_rows(p, d))) for d in gr["days"] if d) for gr in groups]
-    need = (maxrows[0] + maxrows[1]) * rh + 43.4 + 8.4 + 12.4 + 12.2 + 12.2 + 12.2 + 40
-    if need > H - 30:
-        rh = rh * (H - 30 - 140) / ((maxrows[0] + maxrows[1]) * rh)
 
     for gr_i, gr in enumerate(groups):
         lay = [_expand(_day_rows(p, d)) if d else [] for d in gr["days"]]
@@ -577,11 +587,12 @@ def draw_jadwal(c: canvas.Canvas, p: Proyek):
         pen.rect(350.4, gr["title"][0], 354.7, y_rows + nr * rh, fill=BLACK, stroke=False)
     # --- tanda tangan
     t = m.jadwal_ttd
-    pen.text(438.8, 362.7, t.get("tempat_tanggal", ""), "Tahoma", 5.4, anchor="l")
-    pen.text(447.9, 374.7, t.get("jabatan", ""), "Tahoma-Bold", 5.4, anchor="l")
-    pen.image(_img(m.ttd_png), 448.8, 378.7, 497.0, 405.0)
-    pen.text(458.9, 406.0, t.get("nama", ""), "Tahoma-Bold", 3.8, anchor="l")
-    pen.text(457.9, 410.9, t.get("nip", ""), "Tahoma-Bold", 3.8, anchor="l")
+    dy = dasar_jumat - 357.1            # 0 pada susunan bawaan
+    pen.text(438.8, 362.7 + dy, t.get("tempat_tanggal", ""), "Tahoma", 5.4, anchor="l")
+    pen.text(447.9, 374.7 + dy, t.get("jabatan", ""), "Tahoma-Bold", 5.4, anchor="l")
+    pen.image(_img(m.ttd_png), 448.8, 378.7 + dy, 497.0, 405.0 + dy)
+    pen.text(458.9, 406.0 + dy, t.get("nama", ""), "Tahoma-Bold", 3.8, anchor="l")
+    pen.text(457.9, 410.9 + dy, t.get("nip", ""), "Tahoma-Bold", 3.8, anchor="l")
     c.showPage()
 
 
