@@ -11,7 +11,7 @@ from PIL import ImageGrab
 
 p = M.load("data/contoh-ganjil-2025-2026.jadwal")
 app = App(Store(p, None))
-app.geometry("1400x800+0+0")
+app.geometry("1400x800+70+30")
 app.update(); app.update_idletasks()
 def shot(name):
     app.update(); time.sleep(0.4); app.update()

@@ -26,12 +26,13 @@ class Dialog(tk.Toplevel):
         self.transient(parent.winfo_toplevel())
         self.resizable(False, False)
         self.result = None
-        self.body = ttk.Frame(self, padding=10)
+        self.configure(background=theme.BG)
+        self.body = ttk.Frame(self, padding=16)
         self.body.pack(fill="both", expand=True)
-        self.bar = ttk.Frame(self, padding=(10, 0, 10, 10))
+        self.bar = ttk.Frame(self, padding=(16, 2, 16, 14))
         self.bar.pack(fill="x")
-        ttk.Button(self.bar, text="Batal", command=self.destroy).pack(side="right", padx=4)
-        ttk.Button(self.bar, text="OK", command=self._ok).pack(side="right")
+        ttk.Button(self.bar, text="Simpan", style="Accent.TButton", command=self._ok).pack(side="right")
+        ttk.Button(self.bar, text="Batal", command=self.destroy).pack(side="right", padx=8)
         self.bind("<Escape>", lambda e: self.destroy())
 
     def show(self):
@@ -66,7 +67,7 @@ class FormDialog(Dialog):
         self.vars: Dict[str, tk.Variable] = {}
         r = 0
         if hint:
-            ttk.Label(self.body, text=hint, foreground="#555", wraplength=380).grid(
+            ttk.Label(self.body, text=hint, foreground=theme.MUTED, wraplength=380).grid(
                 row=r, column=0, columnspan=2, sticky="w", pady=(0, 6))
             r += 1
         first = None
@@ -129,13 +130,13 @@ class _ListTab(ttk.Frame):
     # ---- bantuan tampilan daftar (zebra, cari, pulihkan pilihan)
     @staticmethod
     def zebra(tv: ttk.Treeview):
-        tv.tag_configure("odd", background="#F6F8FC")
+        tv.tag_configure("odd", background=theme.SUBTLE)
         tv.tag_configure("even", background=theme.SURFACE)
 
     def search_box(self, parent) -> tk.StringVar:
         """Kotak cari kecil; mengisi ulang daftar tiap ketikan (daftar kecil, murah)."""
         v = tk.StringVar()
-        ttk.Label(parent, text="Cari", style="Muted.TLabel").pack(side="left", padx=(2, 4))
+        ttk.Label(parent, text="Cari", style="Bar.TLabel").pack(side="left", padx=(2, 4))
         ttk.Entry(parent, textvariable=v, width=22).pack(side="left")
         v.trace_add("write", lambda *a: self.reload())
         return v
@@ -162,19 +163,18 @@ class _ListTab(ttk.Frame):
 class BebanTab(_ListTab):
     def __init__(self, master, app):
         super().__init__(master, app)
-        bar = ttk.Frame(self)
-        bar.pack(fill="x", pady=(6, 4), padx=6)
-        ttk.Button(bar, text="+ Tambah", style="Accent.TButton", command=self.add).pack(side="left", padx=(0, 6))
+        bar = theme.toolbar(self, "Sel kelas kosong = tidak mengajar (hitam di cetakan). "
+                                  "Klik dua kali baris untuk mengubah.")
+        bar.outer.pack(fill="x")
+        ttk.Button(bar, text="Tambah", style="BarAccent.TButton", command=self.add).pack(side="left", padx=(0, 8))
         for t, c in (("Ubah", self.edit), ("Duplikat", self.dup), ("Hapus", self.delete),
                      ("▲ Naik", lambda: self.move(-1)), ("▼ Turun", lambda: self.move(1))):
-            ttk.Button(bar, text=t, style="Tool.TButton", command=c).pack(side="left", padx=1)
-        sf = ttk.Frame(bar)
-        sf.pack(side="right", padx=4)
+            ttk.Button(bar, text=t, style="Bar.TButton", command=c).pack(side="left", padx=1)
+        sf = ttk.Frame(bar, style="Bar.TFrame")
+        sf.pack(side="right")
         self.q = self.search_box(sf)
-        ttk.Label(self, text="Sel kelas kosong = tidak mengajar (hitam di cetakan). Klik dua kali baris untuk mengubah.",
-                  style="Muted.TLabel").pack(anchor="w", padx=10, pady=(0, 4))
-        fr = ttk.Frame(self)
-        fr.pack(fill="both", expand=True, padx=6, pady=(0, 6))
+        fr = tk.Frame(self, bg=theme.SURFACE, highlightthickness=1, highlightbackground=theme.BORDER)
+        fr.pack(fill="both", expand=True, padx=12, pady=12)
         self.tv = ttk.Treeview(fr, show="headings", selectmode="browse")
         vs = ttk.Scrollbar(fr, command=self.tv.yview)
         hs = ttk.Scrollbar(fr, orient="horizontal", command=self.tv.xview)
@@ -197,8 +197,10 @@ class BebanTab(_ListTab):
                  "mapel": ("Bidang Studi", 170), "bbt": ("BBT", 46), "ket": ("KET", 44)}
         for c in cols:
             if c in heads:
-                self.tv.heading(c, text=heads[c][0])
-                self.tv.column(c, width=heads[c][1], anchor="w" if c in ("guru", "mapel") else "center", stretch=False)
+                self.tv.heading(c, text=heads[c][0],
+                                anchor="w" if c in ("guru", "mapel") else "center")
+                self.tv.column(c, width=heads[c][1], anchor="w" if c in ("guru", "mapel") else "center",
+                               minwidth=heads[c][1], stretch=(c == "mapel"))
             else:
                 self.tv.heading(c, text=p.kelas_by_id(c).nama)
                 self.tv.column(c, width=34, anchor="center", stretch=False)
@@ -343,7 +345,7 @@ class PenugasanDialog(Dialog):
         ttk.Label(b, text="Guru").grid(row=r, column=0, sticky="w")
         cb = ttk.Combobox(b, textvariable=self.v_guru, values=names, width=38)
         cb.grid(row=r, column=1, columnspan=5, sticky="ew", pady=2)
-        ttk.Label(b, text="(ketik nama baru bila belum ada)", foreground="#777").grid(row=r, column=6, columnspan=3, sticky="w")
+        ttk.Label(b, text="(ketik nama baru bila belum ada)", foreground=theme.MUTED).grid(row=r, column=6, columnspan=3, sticky="w")
         r += 1
         ttk.Label(b, text="Kode").grid(row=r, column=0, sticky="w")
         ttk.Entry(b, textvariable=self.v_kode, width=10).grid(row=r, column=1, sticky="w", pady=2)
@@ -369,7 +371,7 @@ class PenugasanDialog(Dialog):
             self.ent[k.id] = v
         r += ((len(self.p.kelas) - 1) // per_row + 1) * 2
         ttk.Label(b, text="Kosong = tidak mengajar di kelas itu (sel hitam). 0 = sel putih kosong.",
-                  foreground="#777").grid(row=r, column=0, columnspan=9, sticky="w")
+                  foreground=theme.MUTED).grid(row=r, column=0, columnspan=9, sticky="w")
         r += 1
         lf = ttk.LabelFrame(b, text="Tampilan cetak (lanjutan)", padding=6)
         lf.grid(row=r, column=0, columnspan=9, sticky="ew", pady=(8, 0))
@@ -449,33 +451,34 @@ class PenugasanDialog(Dialog):
 class GuruTab(_ListTab):
     def __init__(self, master, app):
         super().__init__(master, app)
-        left = ttk.Frame(self)
-        left.pack(side="left", fill="y", padx=(10, 6), pady=8)
-        bar = ttk.Frame(left)
-        bar.pack(fill="x")
-        ttk.Button(bar, text="+ Tambah", style="Accent.TButton", command=self.add).pack(side="left", padx=(0, 6))
+        bar = theme.toolbar(self)
+        bar.outer.pack(fill="x")
+        ttk.Button(bar, text="Tambah", style="BarAccent.TButton", command=self.add).pack(side="left", padx=(0, 8))
         for t, c in (("Ubah", self.edit), ("Hapus", self.delete),
                      ("▲", lambda: self.move(-1)), ("▼", lambda: self.move(1))):
-            ttk.Button(bar, text=t, style="Tool.TButton", width=6 if len(t) > 1 else 3, command=c).pack(side="left", padx=1)
-        sf = ttk.Frame(left)
-        sf.pack(fill="x", pady=(8, 0))
+            ttk.Button(bar, text=t, style="Bar.TButton", width=6 if len(t) > 1 else 3, command=c).pack(side="left", padx=1)
+        sf = ttk.Frame(bar, style="Bar.TFrame")
+        sf.pack(side="right")
         self.q = self.search_box(sf)
+
+        left = tk.Frame(self, bg=theme.SURFACE, highlightthickness=1, highlightbackground=theme.BORDER)
+        left.pack(side="left", fill="y", padx=(12, 7), pady=12)
         self.tv = ttk.Treeview(left, columns=("nama", "ket", "b"), show="headings", selectmode="browse", height=24)
         for c, w, t in (("nama", 250, "Nama guru"), ("ket", 130, "Catatan"), ("b", 56, "Req")):
             self.tv.heading(c, text=t)
             self.tv.column(c, width=w, anchor="w" if c != "b" else "center", stretch=False)
         self.zebra(self.tv)
-        self.tv.pack(fill="y", expand=True, pady=6)
+        self.tv.pack(fill="y", expand=True)
         self.tv.bind("<<TreeviewSelect>>", lambda e: self.show_avail())
         self.tv.bind("<Double-1>", lambda e: self.edit())
 
         self.right = ttk.LabelFrame(self, text="Jam yang diminta kosong (guru mengajar di tempat lain)", padding=10)
-        self.right.pack(side="left", fill="both", expand=True, padx=(6, 10), pady=8)
-        self.lbl = ttk.Label(self.right, text="Pilih guru di daftar kiri.", font=(FONT, 10, "bold"))
+        self.right.pack(side="left", fill="both", expand=True, padx=(7, 12), pady=10)
+        self.lbl = ttk.Label(self.right, text="Pilih guru di daftar kiri.", font=(theme.FONT_UI, 11))
         self.lbl.pack(anchor="w")
-        ttk.Label(self.right, text="Klik kotak untuk menandai jam yang TIDAK bisa diisi guru ini. "
+        ttk.Label(self.right, text="Klik kotak untuk menandai jam yang tidak bisa diisi guru ini. "
                                    "Menempatkan guru di jam itu akan langsung ditandai merah.",
-                  foreground="#555", wraplength=520, justify="left").pack(anchor="w", pady=(2, 8))
+                  foreground=theme.MUTED, wraplength=520, justify="left").pack(anchor="w", pady=(2, 8))
         self.matrix = ttk.Frame(self.right)
         self.matrix.pack(anchor="w")
         self.buttons: Dict = {}
@@ -594,28 +597,35 @@ class GuruTab(_ListTab):
 class KelasTab(_ListTab):
     def __init__(self, master, app):
         super().__init__(master, app)
-        bar = ttk.Frame(self)
-        bar.pack(fill="x", padx=6, pady=(6, 4))
-        ttk.Button(bar, text="+ Tambah kelas", style="Accent.TButton", command=self.add).pack(side="left", padx=(0, 6))
+        bar = theme.toolbar(self)
+        bar.outer.pack(fill="x")
+        ttk.Button(bar, text="Tambah kelas", style="BarAccent.TButton", command=self.add).pack(side="left", padx=(0, 8))
         for t, c in (("Ubah nama", self.rename), ("Hapus", self.delete),
                      ("◀ Geser kiri", lambda: self.move(-1)), ("Geser kanan ▶", lambda: self.move(1))):
-            ttk.Button(bar, text=t, style="Tool.TButton", command=c).pack(side="left", padx=1)
-        self.tv = ttk.Treeview(self, columns=("nama", "wali", "jp"), show="headings", selectmode="browse", height=22)
-        for c, w, t in (("nama", 100, "Kelas"), ("wali", 300, "Wali kelas"), ("jp", 90, "Total JP")):
-            self.tv.heading(c, text=t)
-            self.tv.column(c, width=w, anchor="w" if c != "jp" else "center", stretch=False)
-        self.zebra(self.tv)
-        self.tv.pack(fill="y", padx=10, pady=4, anchor="w")
+            ttk.Button(bar, text=t, style="Bar.TButton", command=c).pack(side="left", padx=1)
+        # catatan & pemilih wali dipasang lebih dulu di sisi bawah supaya tidak pernah
+        # terdorong keluar layar oleh daftar kelas yang panjang
+        ttk.Label(self, style="Muted.TLabel", wraplength=700, justify="left",
+                  text="Menambah atau menghapus kelas langsung mengubah kisi jadwal dan cetakan. "
+                       "Menghapus kelas ikut menghapus isi jadwal & beban kelas itu."
+                  ).pack(side="bottom", anchor="w", padx=12, pady=(6, 12))
         wf = ttk.Frame(self)
-        wf.pack(fill="x", padx=6)
-        ttk.Label(wf, text="Wali kelas terpilih:").pack(side="left")
+        wf.pack(side="bottom", fill="x", padx=12)
+        ttk.Label(wf, text="Wali kelas terpilih", style="Muted.TLabel").pack(side="left")
         self.v_wali = tk.StringVar()
         self.cb = ttk.Combobox(wf, textvariable=self.v_wali, state="readonly", width=40)
-        self.cb.pack(side="left", padx=6)
+        self.cb.pack(side="left", padx=8)
         self.cb.bind("<<ComboboxSelected>>", lambda e: self.set_wali())
-        ttk.Label(self, foreground="#555", wraplength=700, justify="left",
-                  text="Menambah/menghapus kelas langsung mempengaruhi kisi jadwal dan cetakan. "
-                       "Menghapus kelas ikut menghapus isi jadwal & beban kelas itu.").pack(anchor="w", padx=6, pady=8)
+
+        kotak = tk.Frame(self, bg=theme.SURFACE, highlightthickness=1, highlightbackground=theme.BORDER)
+        kotak.pack(fill="both", expand=True, padx=12, pady=12, anchor="w")
+        self.tv = ttk.Treeview(kotak, columns=("nama", "wali", "jp"), show="headings", selectmode="browse")
+        for c, w, t in (("nama", 110, "Kelas"), ("wali", 320, "Wali kelas"), ("jp", 100, "Total JP")):
+            self.tv.heading(c, text=t, anchor="w" if c == "wali" else "center")
+            self.tv.column(c, width=w, anchor="w" if c != "jp" else "center",
+                           minwidth=w, stretch=(c == "wali"))
+        self.zebra(self.tv)
+        self.tv.pack(fill="both", expand=True)
         self.tv.bind("<<TreeviewSelect>>", lambda e: self._sync_wali())
         self.tv.bind("<Double-1>", lambda e: self.rename())
 
@@ -697,11 +707,11 @@ class PengaturanTab(_ListTab):
     def __init__(self, master, app):
         super().__init__(master, app)
         nb = ttk.Notebook(self)
-        nb.pack(fill="both", expand=True, padx=6, pady=6)
-        self.f_meta = ttk.Frame(nb, padding=10)
-        self.f_jam = ttk.Frame(nb, padding=10)
-        nb.add(self.f_meta, text="  Judul, tanda tangan, kop  ")
-        nb.add(self.f_jam, text="  Jam pelajaran per hari  ")
+        nb.pack(fill="both", expand=True)
+        self.f_meta = ttk.Frame(nb, padding=12)
+        self.f_jam = ttk.Frame(nb, padding=12)
+        nb.add(self.f_meta, text="Judul, tanda tangan, kop")
+        nb.add(self.f_jam, text="Jam pelajaran per hari")
         self._build_meta()
         self._build_jam()
 
@@ -724,18 +734,18 @@ class PengaturanTab(_ListTab):
         f.columnconfigure(1, weight=1, uniform="k")
 
         def kartu(judul, fields, col, row, rowspan=1):
-            k = theme.card(f, judul)
+            k = theme.card(f, judul, padding=14)
             k.outer.grid(row=row, column=col, rowspan=rowspan, sticky="new",
-                         padx=(0, 8) if col == 0 else (8, 0), pady=(0, 10))
+                         padx=(0, 9) if col == 0 else (9, 0), pady=(0, 9))
             k.columnconfigure(1, weight=1)
             for i, (key, label) in enumerate(fields, start=1):
-                ttk.Label(k, text=label, style="Card.TLabel").grid(row=i, column=0, sticky="w", pady=3, padx=(0, 12))
+                ttk.Label(k, text=label, style="Card.TLabel").grid(row=i, column=0, sticky="w", pady=2, padx=(0, 12))
                 v = tk.StringVar()
                 if key == "semester":
                     w = ttk.Combobox(k, textvariable=v, values=["GANJIL", "GENAP"], width=36)
                 else:
                     w = ttk.Entry(k, textvariable=v, width=38)
-                w.grid(row=i, column=1, sticky="ew", pady=3)
+                w.grid(row=i, column=1, sticky="ew", pady=2)
                 w.bind("<Return>", lambda e: self.apply_meta())
                 v.trace_add("write", lambda *a: self._meta_changed())
                 self.mv[key] = v
@@ -745,8 +755,8 @@ class PengaturanTab(_ListTab):
         kartu("Tanda tangan — Hal. 1 (Beban Mengajar)", self.KARTU_TTD1, 1, 0)
         kartu("Tanda tangan — Jadwal", self.KARTU_TTD2, 1, 1)
 
-        g = theme.card(f, "Gambar cetakan")
-        g.outer.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(0, 10))
+        g = theme.card(f, "Gambar cetakan", padding=14)
+        g.outer.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(0, 9))
         self.lbl_kop = ttk.Label(g, text="", style="CardMuted.TLabel")
         self.lbl_ttd = ttk.Label(g, text="", style="CardMuted.TLabel")
         ttk.Button(g, text="Ganti gambar kop…", command=lambda: self.pick_image("kop_png")).grid(
@@ -758,7 +768,7 @@ class PengaturanTab(_ListTab):
 
         bar = ttk.Frame(f)
         bar.grid(row=3, column=0, columnspan=2, sticky="ew")
-        self.btn_apply = ttk.Button(bar, text="Terapkan perubahan", style="Accent.TButton", command=self.apply_meta)
+        self.btn_apply = ttk.Button(bar, text="Terapkan perubahan", style="BarAccent.TButton", command=self.apply_meta)
         self.btn_apply.pack(side="left")
         self.lbl_dirty = ttk.Label(bar, text="", style="Muted.TLabel")
         self.lbl_dirty.pack(side="left", padx=12)
@@ -845,7 +855,7 @@ class PengaturanTab(_ListTab):
         self.v_judul = tk.StringVar()
         ttk.Entry(jf, textvariable=self.v_judul, width=24).pack(side="left", padx=6)
         ttk.Button(jf, text="Terapkan", command=self.apply_judul).pack(side="left")
-        ttk.Label(f, foreground="#555", wraplength=700, justify="left",
+        ttk.Label(f, foreground=theme.MUTED, wraplength=700, justify="left",
                   text="Satu mapel = 2 JP (satu 'mapel' di sini). Jam, waktu, dan istirahat bisa diubah per hari. "
                        "Menghapus baris mapel ikut menghapus isi jadwal pada jam itu.").pack(anchor="w", pady=8)
 
@@ -1004,7 +1014,7 @@ class SemesterBaruDialog(Dialog):
         r += 1
         ttk.Checkbutton(b, text="Bawa permintaan jam guru", variable=self.c_req).grid(row=r, column=0, columnspan=2, sticky="w")
         r += 1
-        ttk.Label(b, foreground="#555", wraplength=360, justify="left",
+        ttk.Label(b, foreground=theme.MUTED, wraplength=360, justify="left",
                   text="Isi jadwal selalu dikosongkan. Kelas dan jam pelajaran dibawa sebagaimana adanya; "
                        "semua bisa diubah lagi. Tempat & tanggal tanda tangan dikosongkan; isi ulang di tab Pengaturan.").grid(row=r, column=0, columnspan=2, sticky="w", pady=6)
         self.show()

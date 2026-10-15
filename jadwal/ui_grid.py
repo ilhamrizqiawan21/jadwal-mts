@@ -41,23 +41,35 @@ class GridView(ttk.Frame):
 
         self.mode = "cetak"                           # cetak | hari
         self.day = "Selasa"
-        bar = ttk.Frame(self)
-        bar.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 3))
+        bar = theme.toolbar(self)
+        bar.outer.grid(row=0, column=0, columnspan=2, sticky="ew")
         self.v_mode = tk.StringVar(value=self.mode)
-        ttk.Label(bar, text="Tampilan:").pack(side="left", padx=(2, 4))
         for text, val in (("Seperti cetakan", "cetak"), ("Per hari (lebih besar)", "hari")):
             ttk.Radiobutton(bar, text=text, value=val, variable=self.v_mode, style="Toolbutton",
-                            command=self._mode_changed).pack(side="left", padx=1)
-        self.day_bar = ttk.Frame(bar)
+                            command=self._mode_changed).pack(side="left", padx=(0, 1))
+        self.day_bar = ttk.Frame(bar, style="Bar.TFrame")
         self.v_day = tk.StringVar(value=self.day)
         for h in M.HARI:
             ttk.Radiobutton(self.day_bar, text=h, value=h, variable=self.v_day, style="Toolbutton",
-                            command=self._day_changed).pack(side="left", padx=1)
+                            command=self._day_changed).pack(side="left", padx=(0, 1))
+
+        # zoom tinggal di dekat kisi: alat tampilan, bukan alat berkas
+        ttk.Button(bar, text="+", width=2, style="Bar.TButton",
+                   command=lambda: self.set_zoom(self.zoom + 0.1)).pack(side="right")
+        self.zoom_lbl = ttk.Label(bar, text="100%", style="Bar.TLabel", width=5, anchor="center")
+        self.zoom_lbl.pack(side="right")
+        ttk.Button(bar, text="−", width=2, style="Bar.TButton",
+                   command=lambda: self.set_zoom(self.zoom - 0.1)).pack(side="right")
+        b_fit = ttk.Button(bar, text="Muat selebar jendela", style="Bar.TButton",
+                           command=lambda: (setattr(self, "auto_fit", True), self.fit_zoom()))
+        b_fit.pack(side="right", padx=(0, 6))
+        theme.Tooltip(b_fit, "Sesuaikan perbesaran agar kisi muat selebar jendela")
+
         self.canvas = tk.Canvas(self, background=theme.BG, highlightthickness=0, takefocus=1)
         self.vbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
         self.hbar = ttk.Scrollbar(self, orient="horizontal", command=self.canvas.xview)
         self.canvas.configure(yscrollcommand=self.vbar.set, xscrollcommand=self.hbar.set)
-        self.canvas.grid(row=1, column=0, sticky="nsew", padx=(8, 0), pady=(6, 0))
+        self.canvas.grid(row=1, column=0, sticky="nsew", padx=(12, 0), pady=(12, 0))
         self.vbar.grid(row=1, column=1, sticky="ns")
         self.hbar.grid(row=2, column=0, sticky="ew")
         self.rowconfigure(1, weight=1)
@@ -146,11 +158,13 @@ class GridView(ttk.Frame):
     def fit_zoom(self):
         """Sesuaikan zoom agar tampilan muat selebar jendela."""
         n = max(len(self.p.kelas), 1)
+        tepi = 22 + 74 + 44          # sumbu kiri + tepi kertas
         if self.mode == "hari":
-            need = 22 + 74 + n * 30 + 20
+            need = tepi + n * 30
             hi = 2.0
         else:
-            need = 22 + 74 + 3 * n * 30 + 160 + 20
+            # baris atas: 3 blok hari; baris bawah: 2 blok hari + panel Jum'at — ambil yang terlebar
+            need = tepi + max(3 * n * 30 + 10, 2 * n * 30 + 160 + 10)
             hi = 1.3
         w = self.canvas.winfo_width()
         if w > 100:
@@ -169,6 +183,10 @@ class GridView(ttk.Frame):
         c.delete("all")
         self.cells = {}
         self._max_x = 0
+        # "kertas": alas putih di bawah seluruh kisi, dengan bayangan tipis, supaya kisi
+        # terbaca sebagai satu lembar di atas meja — bukan gambar yang mengambang di latar.
+        c.create_rectangle(0, 0, 1, 1, fill=theme.SHADOW, outline="", tags="kertas_bayang")
+        c.create_rectangle(0, 0, 1, 1, fill=theme.SURFACE, outline=theme.BORDER, tags="kertas")
         p, z = self.p, self.zoom
         n = len(p.kelas)
         cw, rh = 30 * z, 16 * z
@@ -210,10 +228,12 @@ class GridView(ttk.Frame):
             for d in days:
                 x_blocks.append(x)
                 x += (block_w if d else 160 * z) + gap
+            tepi_kanan = x - gap          # tepi kanan sebenarnya (blok terakhir belum tentu panel)
             ytop_rows = y + th + lh
             # sumbu kiri
             c.create_rectangle(0, y, ax_no + ax_wk, y + th + lh, fill=HEAD, outline=theme.GRID_EDGE)
-            c.create_text(ax_no + ax_wk / 2, y + (th + lh) / 2, text="NO   WAKTU", font=(FONT, fs - 1, "bold"))
+            c.create_text(ax_no + ax_wk / 2, y + (th + lh) / 2, text="NO   WAKTU",
+                         fill=theme.MUTED, font=(theme.FONT_COND, fs))
             for k, (kind, r) in enumerate(ref):
                 ya = ytop_rows + k * rh
                 c.create_rectangle(0, ya, ax_no + ax_wk, ya + rh, fill=theme.SURFACE, outline=theme.GRID_LINE)
@@ -247,8 +267,8 @@ class GridView(ttk.Frame):
                     self._panel(x0, y, th, lh, rh, ytop_rows, nr, fs, z)
                     continue
                 c.create_rectangle(x0, y, x0 + block_w, y + th, fill=theme.GRID_DAY, outline=theme.GRID_EDGE)
-                c.create_text(x0 + block_w / 2, y + th / 2, text=hari.upper(), fill=theme.ACCENT_DK,
-                              font=(FONT, fs + 1, "bold"))
+                c.create_text(x0 + block_w / 2, y + th / 2, text=hari.upper(), fill="#0B5C38",
+                              font=(theme.FONT_COND, fs + 2))
                 for i, k_ in enumerate(p.kelas):
                     xa = x0 + i * cw
                     c.create_rectangle(xa, y + th, xa + cw, y + th + lh, fill=HEAD, outline=theme.GRID_EDGE)
@@ -286,11 +306,17 @@ class GridView(ttk.Frame):
                         continue
                     k += 1
             y = ytop_rows + nr * rh + 10 * z
-            self._max_x = max(self._max_x, x_blocks[-1] + (160 * z))
-        c.configure(scrollregion=(0, 0, self._max_x + 10, y))
-        lbl = getattr(self.app, "zoom_lbl", None)
-        if lbl is not None:
-            lbl.config(text=f"{round(self.zoom * 100)}%")
+            self._max_x = max(self._max_x, tepi_kanan)
+        m = 16                                           # tepi kertas di sekeliling kisi
+        c.coords("kertas", -m, -m, self._max_x + m, y + m)
+        c.coords("kertas_bayang", -m + 3, -m + 3, self._max_x + m + 3, y + m + 3)
+        # bila kisi lebih sempit dari jendela, letakkan kertas di tengah (bukan menempel kiri)
+        dx = max(0.0, (c.winfo_width() - (self._max_x + 2 * m + 8)) / 2)
+        if dx > 1:
+            c.move("all", dx, 0)
+            self.cells = {k: (x0 + dx, y0, x1 + dx, y1) for k, (x0, y0, x1, y1) in self.cells.items()}
+        c.configure(scrollregion=(-m - 4 + dx, -m - 4, self._max_x + m + 8 + dx, y + m + 8))
+        self.zoom_lbl.config(text=f"{round(self.zoom * 100)}%")
         self._draw_selection()
 
     def _panel(self, x0, y, th, lh, rh, ytop_rows, nr, fs, z):
@@ -298,7 +324,8 @@ class GridView(ttk.Frame):
         c = self.canvas
         w = 160 * z
         c.create_rectangle(x0, y, x0 + w, y + th + lh, fill=HEAD, outline=theme.GRID_EDGE)
-        c.create_text(x0 + w / 2, y + (th + lh) / 2, text="JAM JUM'AT", font=(FONT, fs, "bold"))
+        c.create_text(x0 + w / 2, y + (th + lh) / 2, text="JAM JUM'AT",
+                     fill=theme.MUTED, font=(theme.FONT_COND, fs + 1))
         k = 0
         for kind, r in _expand(self.p.hari["Jumat"]["baris"]):
             ya = ytop_rows + k * rh
@@ -365,7 +392,10 @@ class GridView(ttk.Frame):
                     c.create_rectangle(min(b[0] for b in band), min(b[1] for b in band),
                                        max(b[2] for b in band), max(b[3] for b in band),
                                        outline=theme.GRID_BAND, width=2, tags="sel")
-            c.create_rectangle(x0, y0, x1, y1, outline=theme.ACCENT, width=3, tags="sel")
+            # cincin gelap: sel bisa berwarna apa saja (warna guru), jadi penanda terpilih
+            # harus tetap terbaca di atas warna apa pun
+            c.create_rectangle(x0 - 1, y0 - 1, x1 + 1, y1 + 1, outline=theme.INK, width=3, tags="sel")
+            c.create_rectangle(x0 + 1, y0 + 1, x1 - 1, y1 - 1, outline=theme.ACCENT, width=1, tags="sel")
 
     # --------------------------------------------------------------- pilihan
     def _cell_at(self, x, y):

@@ -146,55 +146,69 @@ class App(tk.Tk):
         self.bind_all("<Control-o>", lambda e: self.open_file())
 
     # ----------------------------------------------------------------- UI
-    def _build_ui(self):
-        top = ttk.Frame(self)
-        top.pack(fill="x", padx=10, pady=(10, 0))
-        def tombol(text, cmd, tip, style="Tool.TButton", **kw):
-            b = ttk.Button(top, text=text, style=style, command=cmd, **kw)
-            b.pack(side="left", padx=(0, 6) if style.startswith("Accent") else 0)
+    def _build_header(self):
+        """Bilah atas gelap: identitas madrasah di kiri, tindakan berkas di kanan.
+
+        Tindakan yang mengubah berkas dikumpulkan di sini; alat yang hanya mengubah
+        tampilan kisi (zoom, mode) tinggal di dekat kisinya sendiri.
+        """
+        bar = tk.Frame(self, bg=theme.INK)
+        bar.pack(fill="x")
+        tk.Frame(self, bg=theme.ACCENT, height=3).pack(fill="x")   # garis aksen hijau
+
+        kiri = ttk.Frame(bar, style="Ink.TFrame")
+        kiri.pack(side="left", padx=(14, 0), pady=10)
+        self._logo_bar = self._muat_logo(6)
+        if self._logo_bar:
+            ttk.Label(kiri, image=self._logo_bar, style="Ink.TLabel").pack(side="left", padx=(0, 11))
+        judul = ttk.Frame(kiri, style="Ink.TFrame")
+        judul.pack(side="left")
+        ttk.Label(judul, text="Jadwal Pelajaran", style="InkTitle.TLabel").pack(anchor="w")
+        self.file_lbl = ttk.Label(judul, text="", style="InkMuted.TLabel")
+        self.file_lbl.pack(anchor="w")
+
+        kanan = ttk.Frame(bar, style="Ink.TFrame")
+        kanan.pack(side="right", padx=(0, 14), pady=10)
+
+        def tombol(text, cmd, tip, style="Ink.TButton", pad=(0, 0)):
+            b = ttk.Button(kanan, text=text, style=style, command=cmd)
+            b.pack(side="left", padx=pad)
             theme.Tooltip(b, tip)
             return b
 
-        def pemisah():
-            ttk.Separator(top, orient="vertical").pack(side="left", fill="y", padx=4, pady=3)
-
-        tombol("Simpan", self.save, "Simpan berkas  (Ctrl+S)", style="Accent.TButton")
-        pemisah()
         tombol("Urungkan", self.undo, "Urungkan perubahan terakhir  (Ctrl+Z)")
         tombol("Ulangi", self.redo, "Ulangi perubahan yang diurungkan  (Ctrl+Y)")
-        pemisah()
+        tk.Frame(kanan, bg=theme.INK_LINE, width=1).pack(side="left", fill="y", padx=10, pady=5)
         tombol("Ekspor PDF", self.export_pdf, "Buat PDF siap cetak (hal. 1 beban + hal. 2 jadwal)")
         tombol("Ekspor Excel", self.export_xlsx, "Buat berkas Excel dengan format yang sama")
-        pemisah()
-        tombol("−", lambda: self.gv.set_zoom(self.gv.zoom - 0.1), "Perkecil kisi jadwal", width=2)
-        self.zoom_lbl = ttk.Label(top, text="100%", foreground=theme.MUTED, width=5, anchor="center")
-        self.zoom_lbl.pack(side="left")
-        tombol("+", lambda: self.gv.set_zoom(self.gv.zoom + 0.1), "Perbesar kisi jadwal", width=2)
-        self.file_lbl = ttk.Label(top, text="", foreground=theme.MUTED)
-        self.file_lbl.pack(side="right", padx=6)
+        tombol("Simpan", self.save, "Simpan berkas  (Ctrl+S)", "InkAccent.TButton", (12, 0))
+
+    def _build_ui(self):
+        self._build_header()
 
         # lencana status: ringkasan jadwal, diperbarui tiap perubahan (menggantikan banner penuh)
         self.chips = ttk.Frame(self)
-        self.chips.pack(fill="x", padx=10, pady=(8, 0))
-        self.chip_err = theme.chip(self.chips, "", theme.ERR_FG, theme.ERR_BG, self.show_issues)
-        self.chip_ok = theme.chip(self.chips, "", theme.OK_FG, theme.OK_BG, self.show_issues)
-        self.chip_warn = theme.chip(self.chips, "", theme.WARN_FG, theme.WARN_BG, self.show_issues)
-        self.chip_info = theme.chip(self.chips, "", theme.INFO_FG, theme.INFO_BG, self.show_issues)
+        self.chips.pack(fill="x", padx=14, pady=(10, 0))
+        pil = lambda fg, bg, dot: theme.Pill(self.chips, fg, bg, dot, self.show_issues)
+        self.chip_err = pil(theme.ERR_FG, theme.ERR_BG, theme.BAD)
+        self.chip_ok = pil(theme.INFO_FG, theme.INFO_BG, theme.ACCENT)
+        self.chip_warn = pil(theme.WARN_FG, theme.WARN_BG, "#D99200")
+        self.chip_info = pil(theme.INFO_FG, theme.INFO_BG, "#94A49C")
         for c in (self.chip_err, self.chip_ok, self.chip_warn, self.chip_info):
             theme.Tooltip(c, "Klik untuk membuka daftar masalah")
 
         # notifikasi bentrok baru: kartu melayang di kanan atas, hilang sendiri
-        self.banner = tk.Label(self, text="", justify="left", anchor="w", padx=14, pady=9, wraplength=460,
-                               font=(FONT, 10, "bold"), cursor="hand2", bg=theme.WARN_BG, fg="#6B3F00",
-                               highlightthickness=1, highlightbackground="#F0B35A")
+        self.banner = tk.Label(self, text="", justify="left", anchor="w", padx=16, pady=12, wraplength=460,
+                               font=(FONT, 10), cursor="hand2", bg=theme.INK, fg="#E6F0EA",
+                               highlightthickness=2, highlightbackground="#E0A33A")
         self.banner.bind("<Button-1>", lambda e: (self.hide_toast(), self.show_issues()))
 
         self.nb = ttk.Notebook(self)
-        self.nb.pack(fill="both", expand=True, padx=10, pady=(8, 10))
+        self.nb.pack(fill="both", expand=True, padx=14, pady=(10, 0))
 
         # tab jadwal = kisi + panel kanan
         jf = ttk.Frame(self.nb)
-        self.nb.add(jf, text="  Jadwal  ")
+        self.nb.add(jf, text="Jadwal")
         pw = ttk.PanedWindow(jf, orient="horizontal")
         pw.pack(fill="both", expand=True)
         self.gv = GridView(pw, self)
@@ -219,20 +233,20 @@ class App(tk.Tk):
 
         from . import ui_data
         self.tab_beban = ui_data.BebanTab(self.nb, self)
-        self.nb.add(self.tab_beban, text="  Beban Mengajar  ")
+        self.nb.add(self.tab_beban, text="Beban Mengajar")
         self.tab_guru = ui_data.GuruTab(self.nb, self)
-        self.nb.add(self.tab_guru, text="  Guru & Jam Berhalangan  ")
+        self.nb.add(self.tab_guru, text="Guru & Jam Berhalangan")
         self.tab_kelas = ui_data.KelasTab(self.nb, self)
-        self.nb.add(self.tab_kelas, text="  Kelas  ")
+        self.nb.add(self.tab_kelas, text="Kelas")
         self.tab_set = ui_data.PengaturanTab(self.nb, self)
-        self.nb.add(self.tab_set, text="  Pengaturan & Jam  ")
+        self.nb.add(self.tab_set, text="Pengaturan & Jam")
 
         sb = ttk.Frame(self)
-        sb.pack(fill="x", side="bottom", padx=12, pady=(5, 6))
-        ttk.Separator(self).pack(fill="x", side="bottom")
+        sb.pack(fill="x", side="bottom", padx=16, pady=(7, 9))
+        tk.Frame(self, bg=theme.BORDER, height=1).pack(fill="x", side="bottom")
         self.hint = tk.Label(sb, text="", anchor="w", font=(FONT, 10), bg=theme.BG, fg=theme.TEXT)
         self.hint.pack(side="left", fill="x", expand=True)
-        self.info = ttk.Label(sb, text="", foreground=theme.MUTED)
+        self.info = ttk.Label(sb, text="", style="Muted.TLabel")
         self.info.pack(side="right")
 
     def _build_welcome(self, parent) -> tk.Frame:
@@ -240,12 +254,13 @@ class App(tk.Tk):
         w = tk.Frame(parent, bg=theme.BG)
         k = theme.card(w, padding=28)
         k.outer.place(relx=0.5, rely=0.4, anchor="center")
+        k.columnconfigure(1, weight=1)        # sisa lebar jatuh ke kolom tombol, bukan ke nomor
         self._logo_kecil = self._muat_logo(3)
         if self._logo_kecil:
             ttk.Label(k, image=self._logo_kecil, style="Card.TLabel").grid(
                 row=0, column=2, rowspan=6, sticky="ne", padx=(28, 0))
-        ttk.Label(k, text="Mulai menyusun jadwal", style="CardTitle.TLabel", font=(FONT, 15, "bold")).grid(
-            row=0, column=0, columnspan=2, sticky="w")
+        ttk.Label(k, text="Mulai menyusun jadwal", style="CardTitle.TLabel",
+                  font=(theme.FONT_UI, 17)).grid(row=0, column=0, columnspan=2, sticky="w")
         ttk.Label(k, style="CardMuted.TLabel", wraplength=460, justify="left",
                   text="Proyek ini masih kosong. Isi data dasarnya dulu, lalu kisi jadwal siap diisi.").grid(
             row=1, column=0, columnspan=2, sticky="w", pady=(4, 14))
@@ -254,12 +269,16 @@ class App(tk.Tk):
                    ("3", "Isi beban mengajar", lambda: self.nb.select(self.tab_beban)),
                    ("4", "Isi judul & tanda tangan", lambda: self.nb.select(self.tab_set)))
         for i, (no, teks, cmd) in enumerate(langkah, start=2):
-            ttk.Label(k, text=no, style="CardTitle.TLabel", foreground=theme.ACCENT, font=(FONT, 11, "bold")).grid(
-                row=i, column=0, sticky="w", pady=3, padx=(0, 10))
-            ttk.Button(k, text=teks, command=cmd, width=26).grid(row=i, column=1, sticky="w", pady=3)
-        ttk.Separator(k).grid(row=6, column=0, columnspan=2, sticky="ew", pady=14)
-        ttk.Button(k, text="Buka berkas yang sudah ada…", style="Accent.TButton", command=self.open_file).grid(
-            row=7, column=0, columnspan=2, sticky="w")
+            ttk.Label(k, text=no, style="CardTitle.TLabel", foreground=theme.MUTED,
+                      font=(theme.FONT_UI, 12)).grid(row=i, column=0, sticky="w", pady=4, padx=(0, 14))
+            gaya = "StepAccent.TButton" if no == "1" else "Step.TButton"
+            ttk.Button(k, text=teks, command=cmd, width=26, style=gaya).grid(
+                row=i, column=1, sticky="ew", pady=4)
+        ttk.Separator(k).grid(row=6, column=0, columnspan=2, sticky="ew", pady=16)
+        ttk.Label(k, text="Sudah punya berkas jadwal dari semester lalu?",
+                  style="CardMuted.TLabel").grid(row=7, column=0, columnspan=2, sticky="w", pady=(0, 7))
+        ttk.Button(k, text="Buka berkas yang sudah ada…", command=self.open_file).grid(
+            row=8, column=0, columnspan=2, sticky="w")
         return w
 
     def _update_welcome(self):
@@ -329,32 +348,39 @@ class App(tk.Tk):
         self._update_welcome()
         if not self.store.dirty:
             self._autosave_gagal = False
-        warn = "   ⚠ simpan otomatis gagal" if self._autosave_gagal else ""
-        self.file_lbl.config(text=f"{self.store.nama_berkas}{' *' if self.store.dirty else ''}{warn}")
+        if not self.store.path:
+            keadaan = "Belum pernah disimpan"
+        elif self._autosave_gagal:
+            keadaan = f"{self.store.nama_berkas}   simpan otomatis gagal"
+        else:
+            keadaan = (f"{self.store.nama_berkas}   ada perubahan belum disimpan"
+                       if self.store.dirty else f"{self.store.nama_berkas}   tersimpan")
+        self.file_lbl.config(text=keadaan)
         self.title(f"{APP_NAME} — {self.store.nama_berkas}{' *' if self.store.dirty else ''}")
         self.fill_issues()
         self.fill_codes()
         self.gv.redraw()
         for tab in (self.tab_beban, self.tab_guru, self.tab_kelas, self.tab_set):
             tab.reload()
-        self.info.config(text=f"{len(p.kelas)} kelas · {len(p.guru)} guru · {len(p.penugasan)} penugasan")
+        self.info.config(text=f"{len(p.kelas)} kelas     {len(p.guru)} guru     "
+                              f"{len(p.penugasan)} penugasan")
 
     def _update_chips(self, n_err: int, n_warn: int, n_info: int):
         """Lencana ringkasan di bawah toolbar; hanya yang relevan yang ditampilkan."""
         for c in (self.chip_err, self.chip_ok, self.chip_warn, self.chip_info):
             c.pack_forget()
         if n_err:
-            self.chip_err.config(text=f"✖  {n_err} masalah harus diperbaiki")
-            self.chip_err.pack(side="left", padx=(0, 6))
+            self.chip_err.set_text(f"{n_err} masalah harus diperbaiki")
+            self.chip_err.pack(side="left", padx=(0, 7))
         else:
-            self.chip_ok.config(text="✔  Tidak ada bentrok")
-            self.chip_ok.pack(side="left", padx=(0, 6))
+            self.chip_ok.set_text("Tidak ada bentrok")
+            self.chip_ok.pack(side="left", padx=(0, 7))
         if n_warn:
-            self.chip_warn.config(text=f"⚠  {n_warn} peringatan")
-            self.chip_warn.pack(side="left", padx=(0, 6))
+            self.chip_warn.set_text(f"{n_warn} peringatan")
+            self.chip_warn.pack(side="left", padx=(0, 7))
         if n_info:
-            self.chip_info.config(text=f"{n_info} jam belum terpasang")
-            self.chip_info.pack(side="left", padx=(0, 6))
+            self.chip_info.set_text(f"{n_info} jam belum terpasang")
+            self.chip_info.pack(side="left", padx=(0, 7))
 
     GRUP = ((checks.ERROR, "✖  Harus diperbaiki"), (checks.WARN, "⚠  Peringatan"),
             (checks.INFO, "Belum lengkap"))
@@ -442,7 +468,7 @@ class App(tk.Tk):
         baris = [m.pesan.replace("BENTROK: ", "") for m in masalah[:2]]
         if len(masalah) > 2:
             baris.append(f"…dan {len(masalah) - 2} lainnya")
-        self.banner.config(text="⚠  PERUBAHAN INI MENIMBULKAN MASALAH BARU\n" + "\n".join(baris))
+        self.banner.config(text="Perubahan ini menimbulkan masalah baru\n" + "\n".join(baris))
         self.banner.place(relx=1.0, x=-16, y=60, anchor="ne")
         self.banner.lift()
         self.show_hint((masalah[0].pesan, True))
